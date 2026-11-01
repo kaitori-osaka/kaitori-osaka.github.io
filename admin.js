@@ -10,11 +10,10 @@
   var ST = { new: '新着', contacted: '連絡済', scheduled: '日時確定', kit_sent: 'キット発送', pre_appraised: '仮査定提示', waiting: '発送待ち', shipped: 'お客様発送済', arrived: '到着', appraised: '金額提示中', accepted: '成約・同意', paid: '振込済', declined: '不成立', done: '完了', cancelled: '取消' };
   var PLAN = { matome: 'A おまとめ', kodaka: 'B 30%UP' };
   var PLAN_LONG = { matome: 'A おまとめ簡易買取（仮査定なし）', kodaka: 'B 提携先紹介 30%高価買取' };
-  var RATE = 1.3;
   var STATUS_PLAN = ['new', 'pre_appraised', 'waiting', 'shipped', 'arrived', 'appraised', 'accepted', 'paid', 'declined', 'done', 'cancelled'];
   // 提携先プランの手順（管理用）。[状態, 見出し]
   function planSteps(r){
-    var s = [['waiting', 'お客様の発送待ち'], ['shipped', 'お客様が発送'], ['arrived', '到着（査定する）'], ['appraised', (r.plan === 'matome' ? 'おまとめ価格' : '30%上乗せ価格') + 'を提示・回答待ち'], ['accepted', '同意あり（振込する）'], ['paid', '振込済み'], ['done', '完了']];
+    var s = [['waiting', 'お客様の発送待ち'], ['shipped', 'お客様が発送'], ['arrived', '到着（査定する）'], ['appraised', (r.plan === 'matome' ? 'おまとめ価格' : '買取価格') + 'を提示・回答待ち'], ['accepted', '同意あり（振込する）'], ['paid', '振込済み'], ['done', '完了']];
     if(r.plan === 'kodaka' && r.pre_est) s = [['new', '写真で仮査定する'], ['pre_appraised', '仮査定を提示・回答待ち']].concat(s);
     return s;
   }
@@ -228,7 +227,7 @@
     var s = r.status;
     // 1. 仮査定（Bで希望あり）
     if(r.plan === 'kodaka' && r.pre_est && (s === 'new' || s === 'contacted' || s === 'pre_appraised')){
-      h += '<div class="step-act"><b>仮査定の提示</b>（30%上乗せ後の目安で入れてください）<div class="inline">'
+      h += '<div class="step-act"><b>仮査定の提示</b>（上乗せ後の目安を担当者が記入。貴金属・商品券は上乗せ対象外）<div class="inline">'
         + '<label class="f">下限（円）<br><input type="number" min="0" step="100" data-f="estimate_low" value="' + (r.estimate_low == null ? '' : r.estimate_low) + '"></label>'
         + '<label class="f">上限（円）<br><input type="number" min="0" step="100" data-f="estimate_high" value="' + (r.estimate_high == null ? '' : r.estimate_high) + '"></label></div>'
         + '<div class="f"><label>お客様へのひとこと</label><textarea data-f="estimate_note" style="min-height:60px">' + esc(r.estimate_note || '') + '</textarea></div>'
@@ -249,10 +248,10 @@
     // 3. 本査定・価格提示
     if(s === 'arrived' || s === 'appraised'){
       if(r.plan === 'kodaka'){
-        h += '<div class="step-act"><b>本査定（30%上乗せ）</b><div class="inline">'
-          + '<label class="f">通常の査定額（円）<br><input type="number" min="0" step="1" data-f="base_amount" value="' + (r.base_amount == null ? '' : r.base_amount) + '"></label>'
-          + '<label class="f">買取価格＝×1.3（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label></div>'
-          + '<p class="hint">通常の査定額を入れると、買取価格が自動で計算されます（1円未満切り捨て）。</p>';
+        h += '<div class="step-act"><b>本査定（買取価格は担当者が記入）</b><div class="inline">'
+          + '<label class="f">通常の査定額・基準値（円）<br><input type="number" min="0" step="1" data-f="base_amount" value="' + (r.base_amount == null ? '' : r.base_amount) + '"></label>'
+          + '<label class="f">買取価格（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label></div>'
+          + '<p class="hint">通常の査定額は基準値として記録します（お客様にも参考として表示）。買取価格は30%上乗せを目安に記入してください。貴金属・商品券は上乗せの対象外です。</p>';
       } else {
         h += '<div class="step-act"><b>本査定（おまとめ価格）</b><div class="inline">'
           + '<label class="f">おまとめ価格（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label></div>';
@@ -337,7 +336,7 @@
         if(!lo2 || lo2 < 0) throw new Error('下限の金額を入れてください'); if(hi2 < lo2) throw new Error('上限は下限以上にしてください');
         if(!confirm('仮査定をお客様にお知らせします。よろしいですか？')) throw null;
         await call('staffUpdate', { id: r.id, patch: { estimate_low: lo2, estimate_high: hi2, estimate_note: g('estimate_note').trim() || null, estimate_at: new Date().toISOString(), status: 'pre_appraised', assignee: r.assignee || who } });
-        await call('staffNotify', { id: r.id, kind: 'pre_estimate', actor: who, body: '仮査定（30%上乗せ後の目安）：' + yen(lo2) + (hi2 !== lo2 ? ' 〜 ' + yen(hi2) : '') + (g('estimate_note').trim() ? '\n\n' + g('estimate_note').trim() : '') + '\n\n写真からの目安です。お品物の到着後に本査定を行い、正式な金額をお知らせします。' });
+        await call('staffNotify', { id: r.id, kind: 'pre_estimate', actor: who, body: '仮査定（目安）：' + yen(lo2) + (hi2 !== lo2 ? ' 〜 ' + yen(hi2) : '') + (g('estimate_note').trim() ? '\n\n' + g('estimate_note').trim() : '') + '\n\n写真からの目安です。お品物の到着後に本査定を行い、正式な金額をお知らせします。' });
         say('仮査定をお客様に知らせました', 'ok');
       }
       if(act === 'p-kit'){
@@ -356,12 +355,12 @@
         if(r.plan === 'matome' && g('final_amount') === '') throw new Error('おまとめ価格を入れてください');
         var fa2 = Number(g('final_amount')), base = r.plan === 'kodaka' ? Number(g('base_amount')) : null;
         if(r.plan === 'kodaka' && (!base || base < 0)) throw new Error('通常の査定額を入れてください');
-        if(r.plan === 'kodaka' && !fa2) fa2 = Math.floor(base * RATE);
-        if(fa2 < 0 || (!fa2 && r.plan === 'kodaka')) throw new Error('買取価格を入れてください');
+        if(r.plan === 'kodaka' && g('final_amount') === '') throw new Error('買取価格を入れてください');
+        if(fa2 < 0) throw new Error('金額が正しくありません');
         if(!confirm((r.plan === 'matome' ? 'おまとめ価格 ' : '買取価格 ') + yen(fa2) + ' をお客様にお知らせします。よろしいですか？')) throw null;
         var note2 = g('estimate_note').trim();
         await call('staffUpdate', { id: r.id, patch: { base_amount: base, final_amount: fa2, estimate_note: note2 || null, status: 'appraised', estimate_at: new Date().toISOString(), answer: null, answer_at: null, assignee: r.assignee || who } });
-        await call('staffNotify', { id: r.id, kind: 'estimate', actor: who, body: (r.plan === 'matome' ? 'おまとめ価格：' + yen(fa2) : '買取価格：' + yen(fa2) + '\n（通常の査定額 ' + yen(base) + ' ＋ 提携先ご紹介特典30% ' + yen(fa2 - base) + '）') + (note2 ? '\n\n' + note2 : '') + '\n\nご同意いただけましたら、ご登録の口座へお振込みいたします。' });
+        await call('staffNotify', { id: r.id, kind: 'estimate', actor: who, body: (r.plan === 'matome' ? 'おまとめ価格：' + yen(fa2) : '買取価格：' + yen(fa2) + '\n（通常の査定額 ' + yen(base) + '。貴金属・商品券は30%上乗せの対象外です）') + (note2 ? '\n\n' + note2 : '') + '\n\nご同意いただけましたら、ご登録の口座へお振込みいたします。' });
         say('金額をお客様に知らせました', 'ok');
       }
       if(act === 'p-accept' || act === 'p-decline'){
@@ -395,13 +394,6 @@
   });
   async function log(id, action, detail){ try{ await call('staffLog', { id: id, actor: actor(), action: action, detail: detail || null }); }catch(e){} }
   function fmtJp(iso){ var d = new Date(iso); return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Tokyo' }) + ' ' + d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }); }
-
-  // B：通常の査定額を入れたら、買取価格（×1.3）を自動で入れる
-  $('detail').addEventListener('input', function(ev){
-    if(ev.target.dataset.f !== 'base_amount') return;
-    var fa = $('detail').querySelector('[data-f=final_amount]'); var v = Number(ev.target.value);
-    if(fa) fa.value = v > 0 ? Math.floor(v * RATE) : '';
-  });
 
   // 写真の拡大
   $('detail').addEventListener('click', function(ev){ var i = ev.target.closest('.pics img'); if(!i) return; var lb = $('lb'); lb.querySelector('img').src = i.src; lb.hidden = false; });

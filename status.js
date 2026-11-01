@@ -13,8 +13,8 @@
   // 提携先プランの流れ（お客様に見せる手順）
   var PFLOW = {
     matome: [['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', 'おまとめ価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']],
-    kodaka: [['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', '30%上乗せの買取価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']],
-    kodaka_pre: [['new', '写真で仮査定中'], ['pre_appraised', '仮査定のご確認'], ['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', '30%上乗せの買取価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']]
+    kodaka: [['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', '買取価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']],
+    kodaka_pre: [['new', '写真で仮査定中'], ['pre_appraised', '仮査定のご確認'], ['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', '買取価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']]
   };
   var FLOW = {
     shop: ['new', 'contacted', 'scheduled', 'done'],
@@ -113,7 +113,7 @@
     // 仮査定
     if(c.estimateLow != null && (c.status === 'pre_appraised' || c.preEst)){
       var pr = c.estimateHigh && c.estimateHigh !== c.estimateLow ? yen(c.estimateLow) + ' 〜 ' + yen(c.estimateHigh) : yen(c.estimateLow);
-      h += '<div class="note blue" style="margin-top:12px"><p>仮査定（30%上乗せ後の目安）</p><p class="price">' + pr + '</p>'
+      h += '<div class="note blue" style="margin-top:12px"><p>仮査定（目安）</p><p class="price">' + pr + '</p>'
         + (c.status === 'pre_appraised' && c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
         + '<p style="margin-top:6px"><small>写真からの目安です。お品物の到着後に本査定を行い、正式な金額をお知らせします。</small></p>';
       if(c.status === 'pre_appraised') h += '<div class="actions"><button class="btn primary" data-answer="accept">この内容でお品物を送る</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
@@ -131,8 +131,8 @@
     if(c.arrivedAt && ['arrived'].indexOf(c.status) >= 0) h += '<p style="margin-top:10px">' + dt(c.arrivedAt) + 'にお品物が到着しました。ただいま査定しています。</p>';
     // 本査定の金額
     if(c.finalAmount != null && (c.status === 'appraised' || c.answer)){
-      h += '<div class="note blue" style="margin-top:12px"><p>' + (c.plan === 'matome' ? 'おまとめ価格' : '買取価格（提携先ご紹介 30%上乗せ）') + '</p><p class="price">' + yen(c.finalAmount) + '</p>'
-        + (c.plan === 'kodaka' && c.baseAmount != null ? '<p><small>通常の査定額 ' + yen(c.baseAmount) + ' ＋ ご紹介特典 ' + yen(c.finalAmount - c.baseAmount) + '</small></p>' : '')
+      h += '<div class="note blue" style="margin-top:12px"><p>' + (c.plan === 'matome' ? 'おまとめ価格' : '買取価格（提携先ご紹介の高価買取）') + '</p><p class="price">' + yen(c.finalAmount) + '</p>'
+        + (c.plan === 'kodaka' ? '<p><small>' + (c.baseAmount != null ? '通常の査定額 ' + yen(c.baseAmount) + '　' : '') + '※貴金属・商品券は30%上乗せの対象外です</small></p>' : '')
         + (c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
         + (c.plan === 'matome' ? '<p style="margin-top:6px"><small>価格がつかなかったお品物も、処分費などは一切かかりません（おまとめ買取として当店で処分いたします）。</small></p>' : '');
       if(c.status === 'appraised') h += '<div class="actions"><button class="btn primary" data-answer="accept">この金額で売る</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
