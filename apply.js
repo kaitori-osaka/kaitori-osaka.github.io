@@ -20,6 +20,13 @@
   try{ if(REF) sessionStorage.setItem('kd-ref', REF); else REF = sessionStorage.getItem('kd-ref') || ''; }catch(e){}
   var REFNAME = (window.REF_NAMES || {})[REF] || '';
   if(REFNAME){ var rb = document.getElementById('refBadge'); if(rb){ rb.hidden = false; document.getElementById('refName').textContent = REFNAME; } }
+  if(REFNAME){ var rx = document.getElementById('refExtra'); if(rx) rx.hidden = false; }
+  // 紹介元に、担当者名・紹介コード（任意）を添えて記録する（例：エリッツ／担当 山田／コード A123）
+  function refText(){
+    if(!REFNAME) return '';
+    var st = (val('refStaff') || '').trim().slice(0, 15), cd = (val('refCode') || '').trim().slice(0, 15);
+    return REFNAME + (st ? '／担当 ' + st : '') + (cd ? '／コード ' + cd : '');
+  }
   // 紹介元によっては受け付けない買取方法（店頭・出張）があるので、選択肢から外す
   ((window.REF_EXCLUDE || {})[REF] || []).forEach(function(v){
     var x = f.querySelector('input[name=kind][value="' + v + '"]'); if(!x) return;
@@ -161,7 +168,7 @@
       itemNote: val('itemNote'), quantity: (k === 'visit' || k === 'takuhai') ? val('quantity') : '',
       kitBoxes: k === 'takuhai' ? Number(val('kitBoxes')) : null,
       wishes: wishes, howFound: val('howFound'), website: val('website'),
-      adult: true, consent: true, photoCount: (PLANMODE && !pre()) ? 0 : photos.length, ref: REFNAME,
+      adult: true, consent: true, photoCount: (PLANMODE && !pre()) ? 0 : photos.length, ref: refText(),
       plan: PLANMODE ? plan() : '', preEst: PLANMODE ? pre() : false, bank: bk
     };
 
