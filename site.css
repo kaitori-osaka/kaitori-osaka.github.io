@@ -311,3 +311,6 @@ p{margin:0}
 .sign.hero .board{background:rgba(255,255,255,.96)}
 .item .pic:has(img.photo){background:#fff}
 .item .pic img.photo{object-fit:contain}
+.way .wpic{display:block;margin:-20px -20px 16px;aspect-ratio:16/10;overflow:hidden;border-radius:calc(var(--r) - 2px) calc(var(--r) - 2px) 0 0;background:#f4f4f4}
+.way .wpic img{width:100%;height:100%;object-fit:cover;display:block}
+.page-photo{display:block;width:100%;height:auto;border-radius:var(--r);margin:0 0 20px}
