@@ -28,7 +28,18 @@
   });
   if(q){ var r0 = f.querySelector('input[name=kind][value="' + q + '"]'); if(r0) r0.checked = true; }
   // 専用プランのある紹介元（KIYOMICHI など）：宅配買取のみ、A／B を選ぶ
-  var PLANMODE = !!(window.REF_PLANS || {})[REF];
+  // 紹介元のお客様は、宅配買取を A／B の2つのプランで受け付ける（KIYOMICHI はプランのみ）
+  var PQ = Q.get('plan');
+  var PLANMODE = !!(window.REF_PLANS || {})[REF] || (!!REFNAME && (PQ === 'matome' || PQ === 'kodaka'));
+  if(REFNAME && !PLANMODE){
+    var tx = f.querySelector('input[name=kind][value=takuhai]');
+    if(tx){ tx.checked = false; tx.disabled = true; var tl = tx.closest('label'); if(tl){ tl.hidden = true;
+      var nt = document.createElement('p'); nt.className = 'hint'; nt.style.marginTop = '10px';
+      var u = '?t=takuhai&ref=' + encodeURIComponent(REF) + '&plan=';
+      nt.innerHTML = '宅配買取は、ご紹介のお客様専用の <a href="' + u + 'matome">A おまとめ簡易買取</a> か <a href="' + u + 'kodaka">B 30%高価買取</a> からお申し込みください。';
+      tl.parentNode.appendChild(nt); } }
+    if(q === 'takuhai') q = '';
+  }
   function plan(){ var r = f.querySelector('input[name=plan]:checked'); return r ? r.value : ''; }
   function pre(){ return plan() === 'kodaka' && f.elements.preEst.checked; }
   function syncPlan(){
@@ -46,7 +57,7 @@
     document.getElementById('planBox').hidden = false;
     document.getElementById('bankBox').hidden = false;
     f.elements.kitBoxes.value = '0';   // 提携先プランは「手持ちの箱で送る」を最初に選んでおく
-    var pq = Q.get('plan'); if(pq){ var rp = f.querySelector('input[name=plan][value="' + pq + '"]'); if(rp) rp.checked = true; }
+    var pq = PQ; if(pq){ var rp = f.querySelector('input[name=plan][value="' + pq + '"]'); if(rp) rp.checked = true; }
   }
   f.addEventListener('change', function(ev){ if(ev.target.name === 'kind') sync(); syncPlan(); guide(); });
   f.addEventListener('input', function(){ guide(); });
