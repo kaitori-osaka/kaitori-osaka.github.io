@@ -140,10 +140,12 @@
   }
 
   // ── お品物の明細（商品番号・商品名・点数・買取価格／おまとめ／ハイブリッド）──
-  var LIMGS = [];
+  var LIMGS = [], LNAMES = [];
   function lineRow(x, i){
     x = x || {};
+    var im = String(x.img || ''), k = /^画像(\d)$/.exec(im), th = k && LIMGS[k[1] - 1] ? '<img src="' + LIMGS[k[1] - 1] + '" alt="">' : '';
     return '<tr><td><input type="text" data-l="no" maxlength="20" value="' + esc(x.no || String(i + 1)) + '"></td>'
+      + '<td class="col-img"><input type="hidden" data-l="img" value="' + esc(im) + '">' + (im ? '<button type="button" class="limg-ref" data-act="limg-view" data-src="' + esc(im) + '" title="この画像を大きく見る">' + th + '<span>' + esc(im) + '</span></button>' : '<span class="hint">―</span>') + '</td>'
       + '<td><input type="text" data-l="name" maxlength="120" value="' + esc(x.name || '') + '" placeholder="例：ROLEX デイトジャスト 126234"></td>'
       + '<td><input type="number" data-l="qty" min="1" max="999" value="' + esc(x.qty || 1) + '"></td>'
       + '<td class="col-matome"><input type="checkbox" data-l="matome"' + (x.matome ? ' checked' : '') + ' aria-label="おまとめに含める"></td>'
@@ -153,7 +155,7 @@
   }
   function linesBox(r){
     var L = Array.isArray(r.lines) ? r.lines : [], pm = r.price_mode || (r.plan === 'matome' ? 'matome' : 'item');
-    LIMGS = [];
+    LIMGS = []; LNAMES = [];
     var up = r.plan === 'kodaka' || (!!r.ref && (r.kind === 'shop' || r.kind === 'visit'));
     return '<div class="box lines-box pm-' + pm + (up ? ' has-up' : '') + '" id="linesBox" data-up="' + (up ? 1 : 0) + '"><h3>お品物の明細</h3>'
       + '<div class="aibox"><label class="btn ghost small">写真から選ぶ（複数可）<input type="file" accept="image/*" multiple data-lines-files hidden></label>'
@@ -165,7 +167,7 @@
       + '<div class="choices pmode"><label><input type="radio" name="pmode" value="item"' + (pm === 'item' ? ' checked' : '') + '>個別の買取価格</label>'
       + '<label><input type="radio" name="pmode" value="matome"' + (pm === 'matome' ? ' checked' : '') + '>おまとめ価格</label>'
       + '<label><input type="radio" name="pmode" value="hybrid"' + (pm === 'hybrid' ? ' checked' : '') + '>個別＋おまとめ（ハイブリッド）</label></div>'
-      + '<div class="table-wrap"><table class="lines"><thead><tr><th>商品番号</th><th>商品名（ブランド・型番）</th><th>点数</th><th class="col-matome">おまとめ</th><th class="col-up">30%対象</th><th class="col-price">買取価格（円）</th><th></th></tr></thead><tbody>'
+      + '<div class="table-wrap"><table class="lines"><thead><tr><th>商品番号</th><th class="col-img">画像</th><th>商品名（ブランド・型番）</th><th>点数</th><th class="col-matome">おまとめ</th><th class="col-up">30%対象</th><th class="col-price">買取価格（円）</th><th></th></tr></thead><tbody>'
       + (L.length ? L.map(lineRow).join('') : lineRow({}, 0)) + '</tbody></table></div>'
       + '<button class="btn ghost small" data-act="line-add">＋ 行を追加</button>'
       + '<div class="matome-row"><label class="f">おまとめ価格（円）<br><input type="number" min="0" step="1" data-lm="matome" value="' + (r.matome_amount == null ? '' : esc(r.matome_amount)) + '"></label>'
@@ -179,7 +181,7 @@
     var pm = (box.querySelector('[name=pmode]:checked') || {}).value || 'item';
     var L = [].map.call(box.querySelectorAll('tbody tr'), function(tr){
       var q = function(k){ return tr.querySelector('[data-l=' + k + ']'); };
-      return { no: q('no').value.trim(), name: q('name').value.trim(), qty: Number(q('qty').value) || 1, matome: pm === 'matome' ? true : pm === 'hybrid' ? q('matome').checked : false, up: box.dataset.up === '1' ? q('up').checked : true, price: q('price').value === '' ? null : Number(q('price').value) };
+      return { no: q('no').value.trim(), img: q('img').value, name: q('name').value.trim(), qty: Number(q('qty').value) || 1, matome: pm === 'matome' ? true : pm === 'hybrid' ? q('matome').checked : false, up: box.dataset.up === '1' ? q('up').checked : true, price: q('price').value === '' ? null : Number(q('price').value) };
     }).filter(function(x){ return x.name; });
     var mv = box.querySelector('[data-lm=matome]').value, matome = pm === 'item' || mv === '' ? null : Number(mv);
     var total = L.reduce(function(t, x){ return t + (x.matome || x.price == null ? 0 : x.price); }, 0) + (matome || 0);
@@ -208,13 +210,13 @@
   function drawThumbs(over){
     var c = $('detail').querySelector('[data-lines-count]'), t = $('detail').querySelector('[data-lines-thumbs]');
     if(c) c.textContent = '画像：' + LIMGS.length + '枚' + (over ? '（6枚までです）' : LIMGS.length < 6 ? '（6枚まで。何回かに分けて足せます）' : '');
-    if(t) t.innerHTML = LIMGS.map(function(u, i){ return '<span><img src="' + u + '" alt="画像 ' + (i + 1) + '"><button type="button" data-act="limg-del" data-i="' + i + '" aria-label="画像 ' + (i + 1) + ' を外す">×</button></span>'; }).join('');
+    if(t) t.innerHTML = LIMGS.map(function(u, i){ return '<figure><button type="button" class="lth" data-act="limg-view" data-src="画像' + (i + 1) + '" title="大きく見る"><img src="' + u + '" alt="画像' + (i + 1) + '"><b>画像' + (i + 1) + '</b></button><figcaption>' + esc(LNAMES[i] || '') + '</figcaption><button type="button" class="del" data-act="limg-del" data-i="' + i + '" aria-label="画像' + (i + 1) + 'を外す">×</button></figure>'; }).join('');
   }
   $('detail').addEventListener('change', async function(ev){
     if(ev.target.matches('[data-lines-files]')){
       // 選ぶたびに足していく（1枚ずつ撮っても、まとめて選んでもよい）。6枚まで
       var fs = [].slice.call(ev.target.files || []), over = false;
-      for(var i = 0; i < fs.length; i++){ if(LIMGS.length >= 6){ over = true; break; } try{ LIMGS.push(await shrink(fs[i])); }catch(e){} }
+      for(var i = 0; i < fs.length; i++){ if(LIMGS.length >= 6){ over = true; break; } try{ LIMGS.push(await shrink(fs[i])); LNAMES.push(fs[i].name || ('撮影 ' + new Date().toTimeString().slice(0, 8))); }catch(e){} }
       ev.target.value = '';
       drawThumbs(over);
     }
@@ -387,7 +389,18 @@
     var who = actor(), act = b.dataset.act;
     b.disabled = true;
     // 明細の行の追加・削除・合計の反映・画像から調べる（保存以外は画面の中だけで行う）
-    if(act === 'limg-del'){ LIMGS.splice(Number(b.dataset.i), 1); drawThumbs(false); return; }
+    if(act === 'limg-del'){
+      var di = Number(b.dataset.i);
+      if(d.querySelector('#linesBox [data-l=img][value^="画像"]') && !confirm('画像の番号がずれます。明細の「画像」欄と合わなくなるので、外す場合は「画像から商品を調べる」をやり直してください。外しますか？')){ b.disabled = false; return; }
+      LIMGS.splice(di, 1); LNAMES.splice(di, 1); drawThumbs(false); b.disabled = false; return;
+    }
+    if(act === 'limg-view'){
+      var src = b.dataset.src, m2 = /^画像(\d)$/.exec(src), u2 = m2 && LIMGS[m2[1] - 1];
+      b.disabled = false;
+      if(!u2){ say(src + ' は、この画面ではまだ選ばれていません（お客様の写真は上の「写真」欄で確認してください）'); return; }
+      var ov = document.createElement('div'); ov.className = 'lview'; ov.innerHTML = '<figure><img src="' + u2 + '" alt="' + esc(src) + '"><figcaption>' + esc(src) + '　' + esc(LNAMES[m2[1] - 1] || '') + '（押すと閉じます）</figcaption></figure>';
+      ov.addEventListener('click', function(){ ov.remove(); }); document.body.appendChild(ov); return;
+    }
     if(act === 'line-add' || act === 'line-del' || act === 'lines-apply' || act === 'itemize' || act === 'itemize-cust'){
       var tb = d.querySelector('#linesBox tbody'), lb2 = b.textContent;
       try{
@@ -410,7 +423,7 @@
           res.items.forEach(function(x){
             var nm = [x.brand, x.name, x.model].filter(Boolean).join(' ') + (x.note ? '（' + String(x.note).slice(0, 40) + '）' : '');
             var noUp = /金・貴金属|貴金属|金券|商品券|ギフト|インゴット|地金/.test((x.category || '') + ' ' + (x.name || ''));
-            tb.insertAdjacentHTML('beforeend', lineRow({ name: nm, qty: x.qty, up: !noUp }, tb.children.length));
+            tb.insertAdjacentHTML('beforeend', lineRow({ name: nm, qty: x.qty, up: !noUp, img: x.photo ? (act === 'itemize' ? '画像' : 'お客様写真') + x.photo : '' }, tb.children.length));
           });
           if(!tb.children.length) tb.insertAdjacentHTML('beforeend', lineRow({}, 0));
           say(res.items.length ? res.items.length + '件のお品物を明細に入れました。確認・修正して、金額を入れてから「明細を保存」を押してください' : '画像からお品物を見分けられませんでした。手で入力してください', res.items.length ? 'ok' : 'bad');
