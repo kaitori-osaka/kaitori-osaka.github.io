@@ -156,8 +156,9 @@
     LIMGS = [];
     var up = r.plan === 'kodaka' || (!!r.ref && (r.kind === 'shop' || r.kind === 'visit'));
     return '<div class="box lines-box pm-' + pm + (up ? ' has-up' : '') + '" id="linesBox" data-up="' + (up ? 1 : 0) + '"><h3>お品物の明細</h3>'
-      + '<div class="aibox"><label class="btn ghost small">画像を選ぶ・撮る<input type="file" accept="image/*" multiple data-lines-files hidden></label>'
-      + '<span class="hint" data-lines-count>画像：0枚</span>'
+      + '<div class="aibox"><label class="btn ghost small">写真から選ぶ（複数可）<input type="file" accept="image/*" multiple data-lines-files hidden></label>'
+      + '<label class="btn ghost small">カメラで撮る<input type="file" accept="image/*" capture="environment" data-lines-files hidden></label>'
+      + '<span class="hint" data-lines-count>画像：0枚（6枚まで。何回かに分けて足せます）</span><div class="lthumbs" data-lines-thumbs></div>'
       + '<button class="btn ghost small" data-act="itemize">画像から商品を調べる</button>'
       + (r.photo_count ? '<button class="btn ghost small" data-act="itemize-cust">お客様の写真から調べる</button>' : '') + '</div>'
       + '<p class="hint">AIが商品名・ブランド・型番を調べて明細に入れます（下書き）。必ず確認・修正してください。金額は担当者が入れます。</p>'
@@ -204,11 +205,18 @@
       rd.readAsDataURL(file);
     });
   }
+  function drawThumbs(over){
+    var c = $('detail').querySelector('[data-lines-count]'), t = $('detail').querySelector('[data-lines-thumbs]');
+    if(c) c.textContent = '画像：' + LIMGS.length + '枚' + (over ? '（6枚までです）' : LIMGS.length < 6 ? '（6枚まで。何回かに分けて足せます）' : '');
+    if(t) t.innerHTML = LIMGS.map(function(u, i){ return '<span><img src="' + u + '" alt="画像 ' + (i + 1) + '"><button type="button" data-act="limg-del" data-i="' + i + '" aria-label="画像 ' + (i + 1) + ' を外す">×</button></span>'; }).join('');
+  }
   $('detail').addEventListener('change', async function(ev){
     if(ev.target.matches('[data-lines-files]')){
-      var fs = [].slice.call(ev.target.files || [], 0, 6); LIMGS = [];
-      for(var i = 0; i < fs.length; i++){ try{ LIMGS.push(await shrink(fs[i])); }catch(e){} }
-      var c = $('detail').querySelector('[data-lines-count]'); if(c) c.textContent = '画像：' + LIMGS.length + '枚' + (fs.length > 6 ? '（6枚まで）' : '');
+      // 選ぶたびに足していく（1枚ずつ撮っても、まとめて選んでもよい）。6枚まで
+      var fs = [].slice.call(ev.target.files || []), over = false;
+      for(var i = 0; i < fs.length; i++){ if(LIMGS.length >= 6){ over = true; break; } try{ LIMGS.push(await shrink(fs[i])); }catch(e){} }
+      ev.target.value = '';
+      drawThumbs(over);
     }
     if(ev.target.closest('#linesBox')) syncLines();
   });
@@ -379,6 +387,7 @@
     var who = actor(), act = b.dataset.act;
     b.disabled = true;
     // 明細の行の追加・削除・合計の反映・画像から調べる（保存以外は画面の中だけで行う）
+    if(act === 'limg-del'){ LIMGS.splice(Number(b.dataset.i), 1); drawThumbs(false); return; }
     if(act === 'line-add' || act === 'line-del' || act === 'lines-apply' || act === 'itemize' || act === 'itemize-cust'){
       var tb = d.querySelector('#linesBox tbody'), lb2 = b.textContent;
       try{
