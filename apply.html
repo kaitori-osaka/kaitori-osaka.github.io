@@ -68,11 +68,7 @@
 
 <fieldset class="fs" id="bankBox" hidden><legend>お振込先</legend>
 <p class="hint" style="margin-bottom:8px">お申込みの方ご本人名義の口座をご記入ください（法律で定められたご本人確認のためです）。後から「お申込み状況」のページで登録することもできます</p>
-<div class="f"><label for="bkName">金融機関名<span class="opt">任意</span></label><input type="text" id="bkName" name="bkName" maxlength="40" placeholder="例：〇〇銀行"></div>
-<div class="f"><label for="bkBranch">支店名<span class="opt">任意</span></label><input type="text" id="bkBranch" name="bkBranch" maxlength="40"></div>
-<div class="f"><span class="lb">預金の種類</span><div class="choices"><label><input type="radio" name="bkType" value="普通" checked>普通</label><label><input type="radio" name="bkType" value="当座">当座</label></div></div>
-<div class="f"><label for="bkNo">口座番号<span class="opt">任意</span></label><input type="text" id="bkNo" name="bkNo" inputmode="numeric" maxlength="8"></div>
-<div class="f"><label for="bkHolder">口座名義（カタカナ）<span class="opt">任意</span></label><input type="text" id="bkHolder" name="bkHolder" maxlength="40"></div>
+<div data-bk-form id="bkForm"></div>
 </fieldset>
 
 <fieldset class="fs" data-show="shop visit"><legend id="wishLegend">ご希望の日時</legend>

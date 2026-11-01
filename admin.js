@@ -70,15 +70,18 @@
   // ── 一覧 ──
   async function refresh(quiet){
     try{
+      var rb = $('reload'); if(!quiet && rb) rb.disabled = true;
       var j = await call('staffList'); ROWS = j.rows; ROSTER = j.roster;
       drawList();
+      if($('reloadAt')) $('reloadAt').textContent = new Date().toTimeString().slice(0, 5) + ' 時点';
+      if(rb) rb.disabled = false;
       // 開いているお申込みが、お客様側の操作（振込先の登録など）で変わっていたら表示し直す（入力中は待つ）
       if(CUR){
         var c = ROWS.filter(function(r){ return r.id === CUR; })[0], ae = document.activeElement;
         var typing = ae && $('detail').contains(ae) && /INPUT|TEXTAREA|SELECT/.test(ae.tagName);
         if(c && (c.unread_staff > 0 || c.updated_at !== SHOWN) && !(quiet && typing)) open(CUR);
       }
-    }catch(e){ say(e.message); }
+    }catch(e){ say(e.message); if($('reload')) $('reload').disabled = false; }
   }
   function filtered(){
     var k = $('fKind').value, q = $('fq').value.trim().replace(/-/g, '');
@@ -88,7 +91,7 @@
       if(k === 'planA' && r.plan !== 'matome') return false;
       if(k === 'planB' && r.plan !== 'kodaka') return false;
       if(k && k.indexOf('plan') !== 0 && r.kind !== k) return false;
-      if(q && (r.name + r.phone + r.receipt_no.replace(/-/g, '') + (r.kana || '') + (r.email || '')).indexOf(q) < 0) return false;
+      if(q && (r.name + r.phone + r.receipt_no.replace(/-/g, '') + (r.kana || '') + (r.email || '') + (Array.isArray(r.lines) ? r.lines.map(function(x){ return x.name; }).join('') : '')).indexOf(q) < 0) return false;
       return true;
     });
   }
@@ -107,6 +110,7 @@
         + (r.plan ? '<span class="tag go">' + PLAN[r.plan] + (r.pre_est ? '・仮査定' : '') + '</span>' : '')
         + (nextTodo(r) && CLOSED.indexOf(r.status) < 0 ? '<span class="tag">次：' + esc(nextTodo(r)) + '</span>' : '')
         + (r.unread_staff ? '<span class="tag new">連絡 ' + r.unread_staff + '</span>' : '')
+        + (Array.isArray(r.lines) && r.lines.length ? '<span class="tag go">明細 ' + r.lines.length + '件</span>' : '')
         + (r.photo_count ? '<span class="tag">写真 ' + r.photo_count + '</span>' : '')
         + (r.id_status === 'submitted' ? '<span class="tag go">身分証確認待ち</span>' : '')
         + (r.assignee ? '<span>担当 ' + esc(r.assignee) + '</span>' : '') + '</span></button>';
@@ -134,6 +138,31 @@
     d.innerHTML = render(r, msgs, evs);
     if(r.photo_count) loadPics('intake', r.id, d.querySelector('[data-pics=intake]'));
     if(r.kind === 'takuhai' && r.id_status !== 'none') loadPics('idcopy', r.id, d.querySelector('[data-pics=idcopy]'));
+    loadShots(r);
+  }
+  // 店舗で撮った明細の写真（保存済み）を読み込み、明細・買取したお品物の表に写真を出す
+  async function loadShots(r){
+    var id = r.id, files = [];
+    try{ files = await call('staffFiles', { id: id, which: 'shots' }); }catch(e){ return; }
+    if(CUR !== id || !files.length) return;
+    files.slice(-LMAX).forEach(function(f){ if(LFILES.indexOf(f.name) < 0){ LIMGS.push(f.data); LNAMES.push('保存済み ' + f.name.replace(/\.[a-z]+$/, '')); LFILES.push(f.name); } });
+    drawThumbs(false); relabel();
+    var map = {}; files.forEach(function(f){ map[f.name] = f.data; });
+    [].forEach.call($('detail').querySelectorAll('[data-shot]'), function(el){ var u = map[el.dataset.shot]; if(u) el.innerHTML = '<img src="' + u + '" alt="">'; });
+  }
+  // 明細の「画像」欄を、保存済みの写真の並びに合わせて付け直す
+  function relabel(){
+    [].forEach.call($('detail').querySelectorAll('#linesBox tbody tr'), function(tr){
+      var fl = tr.querySelector('[data-l=file]').value, ip = tr.querySelector('[data-l=img]'); if(!fl) return;
+      var i = LFILES.indexOf(fl), cell = ip.parentNode;
+      ip.value = i >= 0 ? '画像' + (i + 1) : '';
+      var btn = cell.querySelector('.limg-ref'), hint = cell.querySelector('.hint');
+      if(i < 0){ if(btn) btn.remove(); if(!hint) cell.insertAdjacentHTML('beforeend', '<span class="hint">―</span>'); return; }
+      if(hint) hint.remove();
+      var html = '<img src="' + LIMGS[i] + '" alt=""><span>画像' + (i + 1) + '</span>';
+      if(btn){ btn.dataset.src = '画像' + (i + 1); btn.innerHTML = html; }
+      else cell.insertAdjacentHTML('beforeend', '<button type="button" class="limg-ref" data-act="limg-view" data-src="画像' + (i + 1) + '" title="この画像を大きく見る">' + html + '</button>');
+    });
   }
   async function loadPics(bucket, folder, box){
     if(!box) return;
@@ -147,12 +176,14 @@
   }
 
   // ── お品物の明細（商品番号・商品名・点数・買取価格／おまとめ／ハイブリッド）──
-  var LIMGS = [], LNAMES = [];
+  var LIMGS = [], LNAMES = [], LFILES = [], LMAX = 10;   // LFILES：保存済みの写真（ドライブの「店舗撮影」）のファイル名
   function lineRow(x, i){
     x = x || {};
-    var im = String(x.img || ''), k = /^画像(\d)$/.exec(im), th = k && LIMGS[k[1] - 1] ? '<img src="' + LIMGS[k[1] - 1] + '" alt="">' : '';
+    var im = String(x.img || ''), fl = String(x.file || '');
+    if(fl && LFILES.indexOf(fl) >= 0) im = '画像' + (LFILES.indexOf(fl) + 1);
+    var k = /^画像(\d+)$/.exec(im), th = k && LIMGS[k[1] - 1] ? '<img src="' + LIMGS[k[1] - 1] + '" alt="">' : '';
     return '<tr><td><input type="text" data-l="no" maxlength="20" value="' + esc(x.no || String(i + 1)) + '"></td>'
-      + '<td class="col-img"><input type="hidden" data-l="img" value="' + esc(im) + '">' + (im ? '<button type="button" class="limg-ref" data-act="limg-view" data-src="' + esc(im) + '" title="この画像を大きく見る">' + th + '<span>' + esc(im) + '</span></button>' : '<span class="hint">―</span>') + '</td>'
+      + '<td class="col-img"><input type="hidden" data-l="img" value="' + esc(im) + '"><input type="hidden" data-l="file" value="' + esc(fl) + '">' + (im ? '<button type="button" class="limg-ref" data-act="limg-view" data-src="' + esc(im) + '" title="この画像を大きく見る">' + th + '<span>' + esc(im) + '</span></button>' : '<span class="hint">―</span>') + '</td>'
       + '<td><input type="text" data-l="name" maxlength="120" value="' + esc(x.name || '') + '" placeholder="例：ROLEX デイトジャスト 126234"></td>'
       + '<td><input type="number" data-l="qty" min="1" max="999" value="' + esc(x.qty || 1) + '"></td>'
       + '<td class="col-matome"><input type="checkbox" data-l="matome"' + (x.matome ? ' checked' : '') + ' aria-label="おまとめに含める"></td>'
@@ -160,14 +191,29 @@
       + '<td class="col-price"><input type="number" data-l="price" min="0" step="1" value="' + (x.price == null ? '' : esc(x.price)) + '"></td>'
       + '<td><button type="button" class="btn ghost small" data-act="line-del" aria-label="この行を消す">×</button></td></tr>';
   }
+  // 買取したお品物（保存済みの明細を、いつでも見られるように上に表示）
+  function boughtBox(r){
+    var L = Array.isArray(r.lines) ? r.lines : []; if(!L.length) return '';
+    var pm = r.price_mode || 'item', sum = 0, n = 0;
+    var rows = L.map(function(x){
+      n += Number(x.qty) || 1; if(!x.matome && x.price != null) sum += Number(x.price);
+      return '<tr><td>' + esc(x.no || '') + '</td><td class="bt-img">' + (x.file ? '<span class="bt-ph" data-shot="' + esc(x.file) + '"></span>' : '') + '</td><td>' + esc(x.name) + (x.up === false ? ' <span class="tag">30%対象外</span>' : '') + '</td><td>' + (x.qty || 1) + '</td><td class="num">' + (x.matome ? 'おまとめ' : x.price == null ? '―' : yen(x.price)) + '</td></tr>';
+    }).join('');
+    var total = sum + (r.matome_amount ? Number(r.matome_amount) : 0);
+    return '<div class="box bought"><h3>買取したお品物（' + L.length + '件・' + n + '点）</h3><div class="table-wrap"><table class="lines-view"><thead><tr><th>番号</th><th>写真</th><th>お品物</th><th>点数</th><th>買取価格</th></tr></thead><tbody>' + rows
+      + (r.matome_amount ? '<tr><td></td><td></td><td>おまとめ価格</td><td></td><td class="num">' + yen(r.matome_amount) + '</td></tr>' : '')
+      + '<tr class="sum"><td></td><td></td><td>合計</td><td>' + n + '</td><td class="num">' + yen(total) + '</td></tr></tbody></table></div>'
+      + (r.final_amount != null && Number(r.final_amount) !== total ? '<p class="hint">お客様に知らせた買取価格：' + yen(r.final_amount) + '（明細の合計と違います）</p>' : '')
+      + '<p class="hint">写真や内容を直すときは、下の「お品物の明細」で直して「明細を保存」を押してください。</p></div>';
+  }
   function linesBox(r){
     var L = Array.isArray(r.lines) ? r.lines : [], pm = r.price_mode || (r.plan === 'matome' ? 'matome' : 'item');
-    LIMGS = []; LNAMES = [];
+    LIMGS = []; LNAMES = []; LFILES = [];
     var up = r.plan === 'kodaka' || (!!r.ref && (r.kind === 'shop' || r.kind === 'visit'));
     return '<div class="box lines-box pm-' + pm + (up ? ' has-up' : '') + '" id="linesBox" data-up="' + (up ? 1 : 0) + '"><h3>お品物の明細</h3>'
       + '<div class="aibox"><label class="btn ghost small">写真から選ぶ（複数可）<input type="file" accept="image/*" multiple data-lines-files hidden></label>'
       + '<label class="btn ghost small">カメラで撮る<input type="file" accept="image/*" capture="environment" data-lines-files hidden></label>'
-      + '<span class="hint" data-lines-count>画像：0枚（6枚まで。何回かに分けて足せます）</span><div class="lthumbs" data-lines-thumbs></div>'
+      + '<span class="hint" data-lines-count>画像：0枚（10枚まで。何回かに分けて足せます）</span><div class="lthumbs" data-lines-thumbs></div>'
       + '<button class="btn ghost small" data-act="itemize">画像から商品を調べる</button>'
       + (r.photo_count ? '<button class="btn ghost small" data-act="itemize-cust">お客様の写真から調べる</button>' : '') + '</div>'
       + '<p class="hint">AIが商品名・ブランド・型番を調べて明細に入れます（下書き）。必ず確認・修正してください。金額は担当者が入れます。</p>'
@@ -188,7 +234,7 @@
     var pm = (box.querySelector('[name=pmode]:checked') || {}).value || 'item';
     var L = [].map.call(box.querySelectorAll('tbody tr'), function(tr){
       var q = function(k){ return tr.querySelector('[data-l=' + k + ']'); };
-      return { no: q('no').value.trim(), img: q('img').value, name: q('name').value.trim(), qty: Number(q('qty').value) || 1, matome: pm === 'matome' ? true : pm === 'hybrid' ? q('matome').checked : false, up: box.dataset.up === '1' ? q('up').checked : true, price: q('price').value === '' ? null : Number(q('price').value) };
+      return { no: q('no').value.trim(), img: q('img').value, file: q('file').value, name: q('name').value.trim(), qty: Number(q('qty').value) || 1, matome: pm === 'matome' ? true : pm === 'hybrid' ? q('matome').checked : false, up: box.dataset.up === '1' ? q('up').checked : true, price: q('price').value === '' ? null : Number(q('price').value) };
     }).filter(function(x){ return x.name; });
     var mv = box.querySelector('[data-lm=matome]').value, matome = pm === 'item' || mv === '' ? null : Number(mv);
     var total = L.reduce(function(t, x){ return t + (x.matome || x.price == null ? 0 : x.price); }, 0) + (matome || 0);
@@ -216,14 +262,14 @@
   }
   function drawThumbs(over){
     var c = $('detail').querySelector('[data-lines-count]'), t = $('detail').querySelector('[data-lines-thumbs]');
-    if(c) c.textContent = '画像：' + LIMGS.length + '枚' + (over ? '（6枚までです）' : LIMGS.length < 6 ? '（6枚まで。何回かに分けて足せます）' : '');
+    if(c) c.textContent = '画像：' + LIMGS.length + '枚' + (over ? '（' + LMAX + '枚までです）' : LIMGS.length < LMAX ? '（' + LMAX + '枚まで。何回かに分けて足せます）' : '') + (LFILES.filter(Boolean).length ? '　うち保存済み ' + LFILES.filter(Boolean).length + '枚' : '');
     if(t) t.innerHTML = LIMGS.map(function(u, i){ return '<figure><button type="button" class="lth" data-act="limg-view" data-src="画像' + (i + 1) + '" title="大きく見る"><img src="' + u + '" alt="画像' + (i + 1) + '"><b>画像' + (i + 1) + '</b></button><figcaption>' + esc(LNAMES[i] || '') + '</figcaption><button type="button" class="del" data-act="limg-del" data-i="' + i + '" aria-label="画像' + (i + 1) + 'を外す">×</button></figure>'; }).join('');
   }
   $('detail').addEventListener('change', async function(ev){
     if(ev.target.matches('[data-lines-files]')){
-      // 選ぶたびに足していく（1枚ずつ撮っても、まとめて選んでもよい）。6枚まで
+      // 選ぶたびに足していく（1枚ずつ撮っても、まとめて選んでもよい）
       var fs = [].slice.call(ev.target.files || []), over = false;
-      for(var i = 0; i < fs.length; i++){ if(LIMGS.length >= 6){ over = true; break; } try{ LIMGS.push(await shrink(fs[i])); LNAMES.push(fs[i].name || ('撮影 ' + new Date().toTimeString().slice(0, 8))); }catch(e){} }
+      for(var i = 0; i < fs.length; i++){ if(LIMGS.length >= LMAX){ over = true; break; } try{ LIMGS.push(await shrink(fs[i])); LFILES.push(''); LNAMES.push(fs[i].name || ('撮影 ' + new Date().toTimeString().slice(0, 8))); }catch(e){} }
       ev.target.value = '';
       drawThumbs(over);
     }
@@ -251,7 +297,7 @@
       + (r.bank || r.plan ? '<dt>振込先</dt><dd>' + (r.bank ? '<b>' + esc(r.bank) + '</b>' : '<span class="tag new">未登録</span>') + '</dd>' : '')
       + (r.plan ? '<dt>プラン</dt><dd><b>' + PLAN_LONG[r.plan] + '</b>' + (r.plan === 'kodaka' ? (r.pre_est ? '（仮査定あり）' : '（仮査定なし）') : '') + '</dd>' : '')
       + (wish ? '<dt>希望日時</dt><dd>' + wish + '</dd>' : '')
-      + '</dl></div>';
+      + '</dl></div>' + boughtBox(r);
 
     // 担当・状態・メモ
     h += '<div class="box"><h3>担当と状態</h3><div class="inline">'
@@ -399,11 +445,11 @@
     // 明細の行の追加・削除・合計の反映・画像から調べる（保存以外は画面の中だけで行う）
     if(act === 'limg-del'){
       var di = Number(b.dataset.i);
-      if(d.querySelector('#linesBox [data-l=img][value^="画像"]') && !confirm('画像の番号がずれます。明細の「画像」欄と合わなくなるので、外す場合は「画像から商品を調べる」をやり直してください。外しますか？')){ b.disabled = false; return; }
-      LIMGS.splice(di, 1); LNAMES.splice(di, 1); drawThumbs(false); b.disabled = false; return;
+      if([].some.call(d.querySelectorAll('#linesBox tbody tr'), function(tr){ return /^画像/.test(tr.querySelector('[data-l=img]').value) && !tr.querySelector('[data-l=file]').value; }) && !confirm('画像の番号がずれます。明細の「画像」欄と合わなくなるので、外す場合は「画像から商品を調べる」をやり直してください。外しますか？')){ b.disabled = false; return; }
+      LIMGS.splice(di, 1); LNAMES.splice(di, 1); LFILES.splice(di, 1); drawThumbs(false); relabel(); b.disabled = false; return;
     }
     if(act === 'limg-view'){
-      var src = b.dataset.src, m2 = /^画像(\d)$/.exec(src), u2 = m2 && LIMGS[m2[1] - 1];
+      var src = b.dataset.src, m2 = /^画像(\d+)$/.exec(src), u2 = m2 && LIMGS[m2[1] - 1];
       b.disabled = false;
       if(!u2){ say(src + ' は、この画面ではまだ選ばれていません（お客様の写真は上の「写真」欄で確認してください）'); return; }
       var ov = document.createElement('div'); ov.className = 'lview'; ov.innerHTML = '<figure><img src="' + u2 + '" alt="' + esc(src) + '"><figcaption>' + esc(src) + '　' + esc(LNAMES[m2[1] - 1] || '') + '（押すと閉じます）</figcaption></figure>';
@@ -425,13 +471,15 @@
         if(act === 'itemize' || act === 'itemize-cust'){
           if(act === 'itemize' && !LIMGS.length) throw new Error('先に「画像を選ぶ・撮る」で画像を入れてください');
           b.textContent = '画像を調べています…（30秒ほど）';
-          var res = await call('staffItemize', { id: r.id, images: act === 'itemize' ? LIMGS : [], actor: who });
+          var res = await call('staffItemize', { id: r.id, images: act === 'itemize' ? LIMGS.map(function(u, i){ return LFILES[i] ? '' : u; }) : [], saved: act === 'itemize' ? LFILES : [], actor: who });
+          if(act === 'itemize' && Array.isArray(res.shots)) res.shots.forEach(function(nm, i){ if(nm) LFILES[i] = nm; });
+          drawThumbs(false);
           var empty = [].filter.call(tb.children, function(tr){ return !tr.querySelector('[data-l=name]').value.trim(); });
           empty.forEach(function(tr){ tr.remove(); });
           res.items.forEach(function(x){
             var nm = [x.brand, x.name, x.model].filter(Boolean).join(' ') + (x.note ? '（' + String(x.note).slice(0, 40) + '）' : '');
             var noUp = /金・貴金属|貴金属|金券|商品券|ギフト|インゴット|地金/.test((x.category || '') + ' ' + (x.name || ''));
-            tb.insertAdjacentHTML('beforeend', lineRow({ name: nm, qty: x.qty, up: !noUp, img: x.photo ? (act === 'itemize' ? '画像' : 'お客様写真') + x.photo : '' }, tb.children.length));
+            tb.insertAdjacentHTML('beforeend', lineRow({ name: nm, qty: x.qty, up: !noUp, img: x.photo ? (act === 'itemize' ? '画像' : 'お客様写真') + x.photo : '', file: act === 'itemize' && x.photo ? (LFILES[x.photo - 1] || '') : '' }, tb.children.length));
           });
           if(!tb.children.length) tb.insertAdjacentHTML('beforeend', lineRow({}, 0));
           say(res.items.length ? res.items.length + '件のお品物を明細に入れました。確認・修正して、金額を入れてから「明細を保存」を押してください' : '画像からお品物を見分けられませんでした。手で入力してください', res.items.length ? 'ok' : 'bad');
@@ -458,6 +506,17 @@
     }
     try{
       if(act === 'lines-save'){
+        // まだ保存していない写真をドライブに保存し、明細の各行に写真のファイル名を結びつける
+        var need = LIMGS.map(function(u, i){ return LFILES[i] ? '' : u; });
+        if(need.some(Boolean)){
+          b.textContent = '写真を保存しています…';
+          var sv = await call('staffShots', { id: r.id, images: need, actor: who });
+          sv.forEach(function(nm, i){ if(nm) LFILES[i] = nm; });
+        }
+        [].forEach.call(d.querySelectorAll('#linesBox tbody tr'), function(tr){
+          var k2 = /^画像(\d+)$/.exec(tr.querySelector('[data-l=img]').value);
+          if(k2 && LFILES[k2[1] - 1]) tr.querySelector('[data-l=file]').value = LFILES[k2[1] - 1];
+        });
         var R1 = readLines();
         await call('staffUpdate', { id: r.id, patch: { lines: R1.lines, price_mode: R1.pm, matome_amount: R1.matome } });
         await log(r.id, '明細を保存', { items: R1.lines.length, total: R1.total, mode: R1.pm }); say('明細を保存しました（合計 ' + yen(R1.total) + '）', 'ok');
@@ -586,7 +645,7 @@
 
   // 表の書き出し（いま表示している一覧）
   $('csv').onclick = function(){
-    var cols = [['受付番号', 'receipt_no'], ['方法', function(r){ return KIND[r.kind]; }], ['状態', function(r){ return ST[r.status]; }], ['受付日時', function(r){ return dt(r.created_at); }], ['お名前', 'name'], ['ふりがな', 'kana'], ['電話', 'phone'], ['メール', 'email'], ['住所', function(r){ return (r.postal || '') + ' ' + (r.address || ''); }], ['品目', function(r){ return (r.items || []).join('、'); }], ['内容', 'item_note'], ['担当', 'assignee'], ['日時', function(r){ return dt(r.scheduled_at); }], ['概算下限', 'estimate_low'], ['概算上限', 'estimate_high'], ['金額', 'final_amount'], ['きっかけ', 'how_found'], ['紹介元', 'ref'], ['連絡方法', function(r){ return ({ phone: '電話', email: 'メール', either: 'どちらでも', line: 'LINE' })[r.contact_pref] || ''; }], ['LINE ID', 'line_id'], ['プラン', function(r){ return r.plan ? PLAN_LONG[r.plan] : ''; }], ['仮査定', function(r){ return r.pre_est ? 'あり' : ''; }], ['通常査定額', 'base_amount'], ['発送日', function(r){ return dt(r.shipped_at); }], ['到着日', function(r){ return dt(r.arrived_at); }], ['振込日', function(r){ return dt(r.paid_at); }]];
+    var cols = [['受付番号', 'receipt_no'], ['方法', function(r){ return KIND[r.kind]; }], ['状態', function(r){ return ST[r.status]; }], ['受付日時', function(r){ return dt(r.created_at); }], ['お名前', 'name'], ['ふりがな', 'kana'], ['電話', 'phone'], ['メール', 'email'], ['住所', function(r){ return (r.postal || '') + ' ' + (r.address || ''); }], ['品目', function(r){ return (r.items || []).join('、'); }], ['内容', 'item_note'], ['担当', 'assignee'], ['日時', function(r){ return dt(r.scheduled_at); }], ['概算下限', 'estimate_low'], ['概算上限', 'estimate_high'], ['金額', 'final_amount'], ['買取したお品物', function(r){ return (Array.isArray(r.lines) ? r.lines : []).map(function(x){ return (x.no ? x.no + ' ' : '') + x.name + ' ×' + (x.qty || 1) + (x.matome ? '（おまとめ）' : x.price != null ? ' ' + x.price + '円' : ''); }).join(' / ') + (r.matome_amount ? ' / おまとめ価格 ' + r.matome_amount + '円' : ''); }], ['きっかけ', 'how_found'], ['紹介元', 'ref'], ['連絡方法', function(r){ return ({ phone: '電話', email: 'メール', either: 'どちらでも', line: 'LINE' })[r.contact_pref] || ''; }], ['LINE ID', 'line_id'], ['プラン', function(r){ return r.plan ? PLAN_LONG[r.plan] : ''; }], ['仮査定', function(r){ return r.pre_est ? 'あり' : ''; }], ['通常査定額', 'base_amount'], ['発送日', function(r){ return dt(r.shipped_at); }], ['到着日', function(r){ return dt(r.arrived_at); }], ['振込日', function(r){ return dt(r.paid_at); }]];
     var lines = [cols.map(function(c){ return c[0]; })].concat(filtered().map(function(r){ return cols.map(function(c){ return typeof c[1] === 'function' ? c[1](r) : r[c[1]]; }); }));
     var csv = '﻿' + lines.map(function(l){ return l.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = '申込一覧_' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();

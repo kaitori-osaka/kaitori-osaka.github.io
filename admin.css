@@ -93,3 +93,13 @@ body.adm{padding-bottom:0;background:#F6F8FC}
 .lview figure{margin:0;text-align:center}
 .lview img{max-width:92vw;max-height:82vh;border-radius:8px;background:#fff}
 .lview figcaption{color:#fff;margin-top:8px}
+.reload-btn{display:inline-flex;flex-direction:column;align-items:center;line-height:1.15;font-weight:700}
+.reload-btn small{font-size:.66rem;font-weight:400;opacity:.85}
+.reload-btn[disabled]{opacity:.6}
+@media (max-width:600px){.adm .hd .wrap{flex-wrap:wrap;row-gap:6px;padding-top:6px;padding-bottom:6px}.adm .hd .brand img{width:120px;height:auto}.who{gap:6px;font-size:.8rem;flex-wrap:wrap}.who .menu-btn{padding:4px 10px}}
+.bought{border-left:5px solid var(--yama,#e0262b)}
+.bought .bt-img{width:64px}
+.bt-ph{display:block;width:56px;height:56px;border-radius:6px;background:#eef0f5}
+.bt-ph img{width:56px;height:56px;object-fit:cover;border-radius:6px;display:block}
+.bought .num{text-align:right;white-space:nowrap}
+.bought{padding-left:14px}

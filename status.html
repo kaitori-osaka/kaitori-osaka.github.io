@@ -39,7 +39,8 @@
 </div>
 <div id="stMsg" role="alert"></div>
 <div id="me" hidden>
-<p style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:16px"><span id="meMail"></span><button class="btn ghost small" id="logout" type="button">この端末で表示をやめる</button></p>
+<p style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:16px"><span id="meMail"></span><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn blue small" id="reload" type="button">↻ 最新の状況に更新</button><button class="btn ghost small" id="logout" type="button">この端末で表示をやめる</button></span></p>
+<button class="reload-fab" id="reloadFab" type="button" hidden aria-label="最新の状況に更新">↻ 更新<small id="reloadAt"></small></button>
 <div id="cases"></div>
 </div>
 </div></section>

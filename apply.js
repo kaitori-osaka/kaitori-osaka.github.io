@@ -4,6 +4,7 @@
   var f = document.getElementById('applyForm'); if(!f) return;
   var msg = document.getElementById('formMsg'), btn = document.getElementById('submitBtn');
   var photos = [];   // data URL
+  var bkf = document.getElementById('bkForm'); if(bkf && window.KD_BANK){ bkf.innerHTML = KD_BANK.form('ap', true); KD_BANK.sync(bkf); }
 
   function kind(){ var r = f.querySelector('input[name=kind]:checked'); return r ? r.value : ''; }
   function sync(){
@@ -154,10 +155,10 @@
     if(PLANMODE && pre() && photos.length === 0) problems.push('仮査定をご希望の場合は、写真を1枚以上選んでください');
     var bk = '';
     if(PLANMODE){
-      var bn = val('bkName'), bb = val('bkBranch'), bno = val('bkNo').replace(/[^0-9]/g, ''), bh = val('bkHolder');
-      if(bn || bb || bno || bh){
-        if(!bn || !bb || bno.length < 6 || !bh) problems.push('お振込先は、金融機関名・支店名・口座番号・名義をすべてご記入ください（後から登録することもできます）');
-        bk = bn + ' ' + bb + ' ' + ((f.querySelector('[name=bkType]:checked') || {}).value || '普通') + ' ' + bno + ' ' + bh;
+      var BK = KD_BANK.read(document.getElementById('bkForm'));
+      if(BK.any){
+        if(!BK.ok) problems.push('お振込先は、金融機関名・支店名・口座番号・名義をすべてご記入ください（後から登録することもできます）');
+        bk = BK.text;
       }
     }
     if(!f.elements.adult.checked) problems.push('18歳以上であることをご確認ください');

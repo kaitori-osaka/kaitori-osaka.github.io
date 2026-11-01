@@ -15,6 +15,7 @@
 <a class="brand" href="admin.html"><img src="logo-h-white.png" width="165" height="40" alt="買取大吉"><span>勝山南店 管理画面</span></a>
 <div class="who" id="who" hidden>
 <label>操作する人 <select id="actor"></select></label>
+<button class="menu-btn reload-btn" id="reload" type="button" title="最新の状況を読み込みます">↻ 更新<small id="reloadAt"></small></button>
 <button class="menu-btn" id="logout" type="button">ログアウト</button>
 </div>
 </div></header>
@@ -39,9 +40,8 @@
 </div>
 <div class="filters">
 <select id="fKind" aria-label="方法で絞り込む"><option value="">すべての方法</option><option value="shop">店頭</option><option value="visit">出張</option><option value="photo">写真査定</option><option value="takuhai">宅配</option><option value="planA">A おまとめ（KIYOMICHI等）</option><option value="planB">B 30%UP（KIYOMICHI等）</option></select>
-<input type="search" id="fq" placeholder="名前・電話・受付番号" aria-label="検索">
+<input type="search" id="fq" placeholder="名前・電話・受付番号・品名" aria-label="検索">
 <button class="btn ghost small" id="csv" type="button">表を書き出す</button>
-<button class="btn ghost small" id="reload" type="button">更新</button>
 </div>
 </div>
 <div id="appMsg" role="alert"></div>

@@ -56,6 +56,14 @@
     b.disabled = false;
   });
   $('logout').addEventListener('click', function(){ SS.set(null); location.reload(); });
+  // 更新ボタン（上と、画面の右下に常に表示）
+  async function reload(){
+    var bs = [$('reload'), $('reloadFab')]; bs.forEach(function(b){ if(b) b.disabled = true; });
+    try{ await load(); say('stMsg', '最新の状況を表示しました', 'ok'); }catch(e){ say('stMsg', e.message); }
+    bs.forEach(function(b){ if(b) b.disabled = false; });
+  }
+  $('reload').addEventListener('click', reload); $('reloadFab').addEventListener('click', reload);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden && SESS && !$('me').hidden){ var ae = document.activeElement; if(!(ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName))) load().catch(function(){}); } });
 
   async function start(){
     if(!API.configured){ say('stMsg', '受付システムが接続されていません。お電話でお問い合わせください。'); $('login').hidden = true; return; }
@@ -65,7 +73,7 @@
       try{ SESS = await API.call('portalEnter', { t: m[1] }); SS.set(SESS); }catch(e){ say('loginMsg', e.message); }
     }
     if(!SESS) return;
-    $('login').hidden = true; $('me').hidden = false; $('meMail').textContent = (SESS.label || SESS.email) + ' のお申込みの内容';
+    $('login').hidden = true; $('me').hidden = false; $('reloadFab').hidden = false; $('meMail').textContent = (SESS.label || SESS.email) + ' のお申込みの内容';
     try{ await load(); }catch(e){ if(e.code === 'auth'){ SS.set(null); SESS = null; $('login').hidden = false; $('me').hidden = true; } say('stMsg', e.message); }
   }
 
@@ -74,6 +82,7 @@
     ALL = await API.call('portalCases', { s: SESS.s });
     if(!ALL.length){ $('cases').innerHTML = '<p class="note blue">このメールアドレスでのお申込みは見つかりませんでした。お申込みのときと同じメールアドレスかご確認ください。<br><a href="apply.html">新しく申し込む</a></p>'; return; }
     $('cases').innerHTML = ALL.map(card).join('');
+    $('reloadAt').textContent = new Date().toTimeString().slice(0, 5) + ' 時点';
   }
 
   // 「いま」と「次にお客様がすること」
@@ -187,9 +196,7 @@
     if(!closed && ['paid', 'done'].indexOf(c.status) < 0){
       h += c.bankSet ? '<p style="margin-top:8px"><small>お振込先：登録済み（変更はお電話か下の連絡欄でお知らせください）</small></p>'
         : '<div class="note" style="margin-top:12px"><b>お振込先の口座をご登録ください</b><p><small>お申込みの方ご本人名義の口座に限ります。</small></p>'
-          + '<div class="f"><label>金融機関名</label><input type="text" maxlength="40" data-bk="n"></div><div class="f"><label>支店名</label><input type="text" maxlength="40" data-bk="b"></div>'
-          + '<div class="f"><label>預金の種類</label><select data-bk="t"><option>普通</option><option>当座</option></select></div>'
-          + '<div class="f"><label>口座番号</label><input type="text" maxlength="8" inputmode="numeric" data-bk="no"></div><div class="f"><label>口座名義（カタカナ）</label><input type="text" maxlength="40" data-bk="h"></div>'
+          + '<div data-bk-form>' + KD_BANK.form('st' + c.id.slice(0, 6)) + '</div>'
           + '<div class="actions"><button class="btn blue small" data-bank>振込先を登録する</button></div></div>';
     }
     // 本人確認
@@ -230,11 +237,11 @@
       catch(e){ say('stMsg', e.message); t.disabled = false; }
     }
     if(t.hasAttribute('data-bank')){
-      var g = function(k){ return ((art.querySelector('[data-bk="' + k + '"]') || {}).value || '').trim(); };
-      var no = g('no').replace(/[^0-9]/g, '');
-      if(!g('n') || !g('b') || no.length < 6 || !g('h')){ say('stMsg', '金融機関名・支店名・口座番号・名義をすべてご記入ください'); return; }
+      var BK = KD_BANK.read(art.querySelector('[data-bk-form]'));
+      if(!BK.ok){ say('stMsg', '金融機関名・支店名・口座番号・名義をすべてご記入ください'); return; }
+      if(!confirm('次の口座で登録します。よろしいですか？\n\n' + BK.text)) return;
       t.disabled = true;
-      try{ await API.call('portalBank', { s: SESS.s, app: id, bank: g('n') + ' ' + g('b') + ' ' + g('t') + ' ' + no + ' ' + g('h') }); await load(); say('stMsg', 'お振込先を登録しました。', 'ok'); }
+      try{ await API.call('portalBank', { s: SESS.s, app: id, bank: BK.text }); await load(); say('stMsg', 'お振込先を登録しました。', 'ok'); }
       catch(e){ say('stMsg', e.message); t.disabled = false; }
     }
   });
