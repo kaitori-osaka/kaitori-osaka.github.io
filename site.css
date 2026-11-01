@@ -217,3 +217,24 @@ p{margin:0}
 .ft .ft-logo{display:block;height:44px;width:auto;margin-bottom:12px}
 .hanko{display:inline-block;width:44px;height:44px;vertical-align:middle}
 @media (min-width:1180px){.brand span{display:none}}
+
+/* 提携窓口 */
+.partner-cta{display:flex;flex-wrap:wrap;gap:16px 24px;align-items:center;justify-content:space-between;border:2px solid var(--blue-line);border-radius:var(--r);padding:22px;background:#fff}
+.partner-cta>div{flex:1 1 420px;min-width:0}
+.partner-cta h2{margin-bottom:6px}
+.partners{display:grid;gap:16px}
+@media (min-width:900px){.partners{grid-template-columns:repeat(3,1fr)}}
+.partner{display:flex;flex-direction:column;border:2px solid var(--blue-line);border-radius:var(--r);padding:20px;background:#fff}
+.partner .who{font-size:.88rem;color:var(--mute)}
+.partner h2{font-size:1.3rem;color:var(--blue-dk);margin:4px 0 10px}
+.partner>p:not(.who){flex:1;font-size:.95rem}
+.partner .actions{margin-top:16px}
+
+/* ご紹介元 */
+.ref-badge{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;border:2px solid var(--blue);border-radius:var(--r);background:var(--blue-lt);padding:12px 16px;margin-bottom:20px}
+.ref-badge b{font-size:1.15rem;color:var(--blue-dk)}
+.ref-badge span{font-size:.85rem;color:var(--mute)}
+.ref-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:760px){.ref-list{grid-template-columns:repeat(3,1fr)}}
+.ref-list a{display:flex;align-items:center;justify-content:center;min-height:64px;padding:10px;border:2px solid var(--blue-line);border-radius:var(--r);background:#fff;color:var(--blue-dk);font-weight:700;text-decoration:none;text-align:center}
+.ref-list a:hover{border-color:var(--blue)}

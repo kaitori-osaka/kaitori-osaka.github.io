@@ -73,6 +73,7 @@
       return '<button class="row' + (r.id === CUR ? ' on' : '') + '" data-id="' + r.id + '"><span class="l1"><span>' + esc(r.name) + ' 様</span><span class="tag ' + tagFor(r.status) + '">' + ST[r.status] + '</span></span>'
         + '<span class="l2"><span class="tag">' + KIND[r.kind] + '</span>' + esc(r.receipt_no) + '・' + dt(r.created_at)
         + (r.mode === 'trial' ? '<span class="tag trial">試験</span>' : '')
+        + (r.ref ? '<span class="tag">紹介 ' + esc(r.ref) + '</span>' : '')
         + (r.unread_staff ? '<span class="tag new">連絡 ' + r.unread_staff + '</span>' : '')
         + (r.photo_count ? '<span class="tag">写真 ' + r.photo_count + '</span>' : '')
         + (r.id_status === 'submitted' ? '<span class="tag go">身分証確認待ち</span>' : '')
@@ -122,6 +123,7 @@
       + '<dt>メール</dt><dd>' + (r.email ? esc(r.email) : '（なし）') + '</dd>'
       + '<dt>連絡方法</dt><dd>' + ({ phone: '電話', email: 'メール', either: 'どちらでも' }[r.contact_pref]) + '</dd>'
       + (r.address ? '<dt>住所</dt><dd>' + esc((r.postal ? '〒' + r.postal + ' ' : '') + r.address) + '</dd>' : '')
+      + (r.ref ? '<dt>紹介元</dt><dd><b>' + esc(r.ref) + '</b></dd>' : '')
       + (r.how_found ? '<dt>きっかけ</dt><dd>' + esc(r.how_found) + '</dd>' : '')
       + '</dl><dl class="kv">'
       + '<dt>品目</dt><dd>' + esc((r.items || []).join('、') || '（未選択）') + '</dd>'
@@ -265,7 +267,7 @@
 
   // 表の書き出し（いま表示している一覧）
   $('csv').onclick = function(){
-    var cols = [['受付番号', 'receipt_no'], ['方法', function(r){ return KIND[r.kind]; }], ['状態', function(r){ return ST[r.status]; }], ['受付日時', function(r){ return dt(r.created_at); }], ['お名前', 'name'], ['ふりがな', 'kana'], ['電話', 'phone'], ['メール', 'email'], ['住所', function(r){ return (r.postal || '') + ' ' + (r.address || ''); }], ['品目', function(r){ return (r.items || []).join('、'); }], ['内容', 'item_note'], ['担当', 'assignee'], ['日時', function(r){ return dt(r.scheduled_at); }], ['概算下限', 'estimate_low'], ['概算上限', 'estimate_high'], ['金額', 'final_amount'], ['きっかけ', 'how_found']];
+    var cols = [['受付番号', 'receipt_no'], ['方法', function(r){ return KIND[r.kind]; }], ['状態', function(r){ return ST[r.status]; }], ['受付日時', function(r){ return dt(r.created_at); }], ['お名前', 'name'], ['ふりがな', 'kana'], ['電話', 'phone'], ['メール', 'email'], ['住所', function(r){ return (r.postal || '') + ' ' + (r.address || ''); }], ['品目', function(r){ return (r.items || []).join('、'); }], ['内容', 'item_note'], ['担当', 'assignee'], ['日時', function(r){ return dt(r.scheduled_at); }], ['概算下限', 'estimate_low'], ['概算上限', 'estimate_high'], ['金額', 'final_amount'], ['きっかけ', 'how_found'], ['紹介元', 'ref']];
     var lines = [cols.map(function(c){ return c[0]; })].concat(filtered().map(function(r){ return cols.map(function(c){ return typeof c[1] === 'function' ? c[1](r) : r[c[1]]; }); }));
     var csv = '﻿' + lines.map(function(l){ return l.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = '申込一覧_' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();

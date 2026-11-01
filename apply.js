@@ -14,7 +14,12 @@
     });
     var wl = document.getElementById('wishLegend'); if(wl) wl.textContent = k === 'visit' ? 'ご訪問の希望日時' : 'ご来店の希望日時';
   }
-  var q = new URLSearchParams(location.search).get('t');
+  var Q = new URLSearchParams(location.search), q = Q.get('t');
+  // 紹介元（/ref-○○/ ページから来た場合）。端末に覚えておき、別のページを経由しても引き継ぐ
+  var REF = Q.get('ref') || '';
+  try{ if(REF) sessionStorage.setItem('kd-ref', REF); else REF = sessionStorage.getItem('kd-ref') || ''; }catch(e){}
+  var REFNAME = (window.REF_NAMES || {})[REF] || '';
+  if(REFNAME){ var rb = document.getElementById('refBadge'); if(rb){ rb.hidden = false; document.getElementById('refName').textContent = REFNAME; } }
   if(q){ var r0 = f.querySelector('input[name=kind][value="' + q + '"]'); if(r0) r0.checked = true; }
   f.addEventListener('change', function(ev){ if(ev.target.name === 'kind') sync(); });
   sync();
@@ -73,7 +78,7 @@
       itemNote: val('itemNote'), quantity: (k === 'visit' || k === 'takuhai') ? val('quantity') : '',
       kitBoxes: k === 'takuhai' ? Number(val('kitBoxes')) : null,
       wishes: wishes, howFound: val('howFound'), website: val('website'),
-      adult: true, consent: true, photoCount: photos.length
+      adult: true, consent: true, photoCount: photos.length, ref: REFNAME
     };
 
     if(!window.API || !API.configured){ say('受付システムが接続されていないため、送信されていません。お手数ですがお電話（' + (C.tel || '') + '）でお申込みください。'); return; }
