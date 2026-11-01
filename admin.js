@@ -139,6 +139,80 @@
     }catch(e){ box.innerHTML = '<span class="hint">写真を読み込めませんでした：' + esc(e.message) + '</span>'; }
   }
 
+  // ── お品物の明細（商品番号・商品名・点数・買取価格／おまとめ／ハイブリッド）──
+  var LIMGS = [];
+  function lineRow(x, i){
+    x = x || {};
+    return '<tr><td><input type="text" data-l="no" maxlength="20" value="' + esc(x.no || String(i + 1)) + '"></td>'
+      + '<td><input type="text" data-l="name" maxlength="120" value="' + esc(x.name || '') + '" placeholder="例：ROLEX デイトジャスト 126234"></td>'
+      + '<td><input type="number" data-l="qty" min="1" max="999" value="' + esc(x.qty || 1) + '"></td>'
+      + '<td class="col-matome"><input type="checkbox" data-l="matome"' + (x.matome ? ' checked' : '') + ' aria-label="おまとめに含める"></td>'
+      + '<td class="col-up"><input type="checkbox" data-l="up"' + (x.up === false ? '' : ' checked') + ' aria-label="30%上乗せの対象"></td>'
+      + '<td class="col-price"><input type="number" data-l="price" min="0" step="1" value="' + (x.price == null ? '' : esc(x.price)) + '"></td>'
+      + '<td><button type="button" class="btn ghost small" data-act="line-del" aria-label="この行を消す">×</button></td></tr>';
+  }
+  function linesBox(r){
+    var L = Array.isArray(r.lines) ? r.lines : [], pm = r.price_mode || (r.plan === 'matome' ? 'matome' : 'item');
+    LIMGS = [];
+    var up = r.plan === 'kodaka' || (!!r.ref && (r.kind === 'shop' || r.kind === 'visit'));
+    return '<div class="box lines-box pm-' + pm + (up ? ' has-up' : '') + '" id="linesBox" data-up="' + (up ? 1 : 0) + '"><h3>お品物の明細</h3>'
+      + '<div class="aibox"><label class="btn ghost small">画像を選ぶ・撮る<input type="file" accept="image/*" multiple data-lines-files hidden></label>'
+      + '<span class="hint" data-lines-count>画像：0枚</span>'
+      + '<button class="btn ghost small" data-act="itemize">画像から商品を調べる</button>'
+      + (r.photo_count ? '<button class="btn ghost small" data-act="itemize-cust">お客様の写真から調べる</button>' : '') + '</div>'
+      + '<p class="hint">AIが商品名・ブランド・型番を調べて明細に入れます（下書き）。必ず確認・修正してください。金額は担当者が入れます。</p>'
+      + '<div class="choices pmode"><label><input type="radio" name="pmode" value="item"' + (pm === 'item' ? ' checked' : '') + '>個別の買取価格</label>'
+      + '<label><input type="radio" name="pmode" value="matome"' + (pm === 'matome' ? ' checked' : '') + '>おまとめ価格</label>'
+      + '<label><input type="radio" name="pmode" value="hybrid"' + (pm === 'hybrid' ? ' checked' : '') + '>個別＋おまとめ（ハイブリッド）</label></div>'
+      + '<div class="table-wrap"><table class="lines"><thead><tr><th>商品番号</th><th>商品名（ブランド・型番）</th><th>点数</th><th class="col-matome">おまとめ</th><th class="col-up">30%対象</th><th class="col-price">買取価格（円）</th><th></th></tr></thead><tbody>'
+      + (L.length ? L.map(lineRow).join('') : lineRow({}, 0)) + '</tbody></table></div>'
+      + '<button class="btn ghost small" data-act="line-add">＋ 行を追加</button>'
+      + '<div class="matome-row"><label class="f">おまとめ価格（円）<br><input type="number" min="0" step="1" data-lm="matome" value="' + (r.matome_amount == null ? '' : esc(r.matome_amount)) + '"></label>'
+      + '<p class="hint">ハイブリッドでは「おまとめ」にチェックした行をまとめて1つの価格にします。</p></div>'
+      + (up ? '<p class="hint">提携先ご紹介の30%上乗せ：「30%対象」は最初はすべてチェックが入っています。<b>貴金属・商品券など上乗せの対象外のお品物は、チェックを外してください。</b>（AIが金・貴金属や金券と判断した物は、最初から外してあります）</p>' : '')
+      + '<p class="lines-total" data-lines-total></p>'
+      + '<div class="actions"><button class="btn blue small" data-act="lines-save">明細を保存</button><button class="btn ghost small" data-act="lines-apply">合計を買取価格の欄に入れる</button></div></div>';
+  }
+  function readLines(){
+    var box = $('linesBox'); if(!box) return null;
+    var pm = (box.querySelector('[name=pmode]:checked') || {}).value || 'item';
+    var L = [].map.call(box.querySelectorAll('tbody tr'), function(tr){
+      var q = function(k){ return tr.querySelector('[data-l=' + k + ']'); };
+      return { no: q('no').value.trim(), name: q('name').value.trim(), qty: Number(q('qty').value) || 1, matome: pm === 'matome' ? true : pm === 'hybrid' ? q('matome').checked : false, up: box.dataset.up === '1' ? q('up').checked : true, price: q('price').value === '' ? null : Number(q('price').value) };
+    }).filter(function(x){ return x.name; });
+    var mv = box.querySelector('[data-lm=matome]').value, matome = pm === 'item' || mv === '' ? null : Number(mv);
+    var total = L.reduce(function(t, x){ return t + (x.matome || x.price == null ? 0 : x.price); }, 0) + (matome || 0);
+    // 基準値（通常の査定額）：30%対象の物は ÷1.3、対象外（チェックを外した物）はそのまま。おまとめ価格は対象として ÷1.3
+    var base = box.dataset.up === '1' ? L.reduce(function(t, x){ return t + (x.matome || x.price == null ? 0 : (x.up ? Math.round(x.price / 1.3) : x.price)); }, 0) + (matome ? Math.round(matome / 1.3) : 0) : null;
+    return { pm: pm, lines: L, matome: matome, total: total, base: base };
+  }
+  function syncLines(){
+    var box = $('linesBox'); if(!box) return;
+    var pm = (box.querySelector('[name=pmode]:checked') || {}).value || 'item';
+    box.className = 'box lines-box pm-' + pm + (box.dataset.up === '1' ? ' has-up' : '');
+    [].forEach.call(box.querySelectorAll('tbody tr'), function(tr){ var mc = tr.querySelector('[data-l=matome]'), pr = tr.querySelector('[data-l=price]'); pr.disabled = pm === 'matome' || (pm === 'hybrid' && mc.checked); });
+    var R = readLines(), n = R.lines.reduce(function(t, x){ return t + x.qty; }, 0);
+    box.querySelector('[data-lines-total]').textContent = '合計：' + R.lines.length + '品目・' + n + '点　買取価格の合計 ' + yen(R.total) + (R.matome != null ? '（うち おまとめ ' + yen(R.matome) + '）' : '') + (R.base != null ? '　／　基準値（通常の査定額）の合計 ' + yen(R.base) + '・上乗せ分 ' + yen(R.total - R.base) : '');
+  }
+  function shrink(file){
+    return new Promise(function(ok, ng){
+      var rd = new FileReader(); rd.onerror = ng;
+      rd.onload = function(){ var im = new Image(); im.onerror = ng; im.onload = function(){
+        var k = Math.min(1, 1280 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        ok(c.toDataURL('image/jpeg', 0.82)); }; im.src = rd.result; };
+      rd.readAsDataURL(file);
+    });
+  }
+  $('detail').addEventListener('change', async function(ev){
+    if(ev.target.matches('[data-lines-files]')){
+      var fs = [].slice.call(ev.target.files || [], 0, 6); LIMGS = [];
+      for(var i = 0; i < fs.length; i++){ try{ LIMGS.push(await shrink(fs[i])); }catch(e){} }
+      var c = $('detail').querySelector('[data-lines-count]'); if(c) c.textContent = '画像：' + LIMGS.length + '枚' + (fs.length > 6 ? '（6枚まで）' : '');
+    }
+    if(ev.target.closest('#linesBox')) syncLines();
+  });
+
   function render(r, msgs, evs){
     var wish = r.wishes ? esc(r.wishes).split(' / ').map(function(w, i){ return '第' + (i + 1) + '希望 ' + w; }).join('<br>') : '';
     var tel = r.phone.replace(/[^0-9+]/g, '');
@@ -192,6 +266,8 @@
         + (r.id_status === 'submitted' ? '<div class="actions"><button class="btn blue small" data-act="id-ok">身分証を確認済みにする</button></div>' : '')
         + '<p class="hint">転送不要の簡易書留の到達と、同じ名義の口座への振込で本人確認を完了します。</p></div>';
     }
+
+    h += linesBox(r);
 
     // 金額の提示
     var isRange = r.kind === 'photo';
@@ -302,6 +378,38 @@
     var d = $('detail'), g = function(f){ var el = d.querySelector('[data-f=' + f + ']'); return el ? el.value : ''; };
     var who = actor(), act = b.dataset.act;
     b.disabled = true;
+    // 明細の行の追加・削除・合計の反映・画像から調べる（保存以外は画面の中だけで行う）
+    if(act === 'line-add' || act === 'line-del' || act === 'lines-apply' || act === 'itemize' || act === 'itemize-cust'){
+      var tb = d.querySelector('#linesBox tbody'), lb2 = b.textContent;
+      try{
+        if(act === 'line-add'){ tb.insertAdjacentHTML('beforeend', lineRow({}, tb.children.length)); }
+        if(act === 'line-del'){ var tr = b.closest('tr'); if(tb.children.length > 1) tr.remove(); else tr.querySelectorAll('input[type=text],input[type=number]').forEach(function(x){ x.value = x.dataset.l === 'qty' ? 1 : x.dataset.l === 'no' ? 1 : ''; }); }
+        if(act === 'lines-apply'){
+          var R0 = readLines(), fa = d.querySelector('[data-f=final_amount]');
+          if(!fa) throw new Error('この段階では買取価格の欄がありません（本査定・金額提示の欄が出てから使ってください）');
+          fa.value = R0.total; fa.dispatchEvent(new Event('input', { bubbles: true }));
+          var bf0 = d.querySelector('[data-f=base_amount]'); if(bf0 && R0.base != null){ bf0.value = R0.base; delete bf0.dataset.auto; }
+          var ro = d.querySelector('[data-revout]'); if(ro && R0.base != null) ro.textContent = '明細から：基準値（通常の査定額）' + yen(R0.base) + '／上乗せ分 ' + yen(R0.total - R0.base) + '（30%対象外のお品物は上乗せなし）';
+          fa.focus(); say('合計 ' + yen(R0.total) + ' を買取価格の欄に入れました（まだ送っていません）', 'ok');
+        }
+        if(act === 'itemize' || act === 'itemize-cust'){
+          if(act === 'itemize' && !LIMGS.length) throw new Error('先に「画像を選ぶ・撮る」で画像を入れてください');
+          b.textContent = '画像を調べています…（30秒ほど）';
+          var res = await call('staffItemize', { id: r.id, images: act === 'itemize' ? LIMGS : [], actor: who });
+          var empty = [].filter.call(tb.children, function(tr){ return !tr.querySelector('[data-l=name]').value.trim(); });
+          empty.forEach(function(tr){ tr.remove(); });
+          res.items.forEach(function(x){
+            var nm = [x.brand, x.name, x.model].filter(Boolean).join(' ') + (x.note ? '（' + String(x.note).slice(0, 40) + '）' : '');
+            var noUp = /金・貴金属|貴金属|金券|商品券|ギフト|インゴット|地金/.test((x.category || '') + ' ' + (x.name || ''));
+            tb.insertAdjacentHTML('beforeend', lineRow({ name: nm, qty: x.qty, up: !noUp }, tb.children.length));
+          });
+          if(!tb.children.length) tb.insertAdjacentHTML('beforeend', lineRow({}, 0));
+          say(res.items.length ? res.items.length + '件のお品物を明細に入れました。確認・修正して、金額を入れてから「明細を保存」を押してください' : '画像からお品物を見分けられませんでした。手で入力してください', res.items.length ? 'ok' : 'bad');
+        }
+        syncLines();
+      }catch(e){ say(e.message); }
+      b.textContent = lb2; b.disabled = false; return;
+    }
     // AIで下書き：本文欄に入れるだけ（送信はしない）。担当者が確認・修正・承認してから送る
     if(act === 'ai-draft'){
       var tgt = d.querySelector('[data-f=' + b.dataset.target + ']'), lb = b.textContent;
@@ -317,6 +425,11 @@
       b.textContent = lb; b.disabled = false; return;
     }
     try{
+      if(act === 'lines-save'){
+        var R1 = readLines();
+        await call('staffUpdate', { id: r.id, patch: { lines: R1.lines, price_mode: R1.pm, matome_amount: R1.matome } });
+        await log(r.id, '明細を保存', { items: R1.lines.length, total: R1.total, mode: R1.pm }); say('明細を保存しました（合計 ' + yen(R1.total) + '）', 'ok');
+      }
       if(act === 'save-state'){
         await call('staffUpdate', { id: r.id, patch: { assignee: g('assignee') || null, status: g('status') } });
         await log(r.id, '担当・状態を変更', { assignee: g('assignee'), status: g('status') }); say('保存しました', 'ok');
@@ -423,6 +536,7 @@
   // 買取価格 → 基準値（通常の査定額）の逆算（30%上乗せ：買取価格 ÷ 1.3）
   $('detail').addEventListener('input', function(ev){
     var t = ev.target;
+    if(t.closest('#linesBox')){ syncLines(); return; }
     if(t.dataset.f === 'base_amount'){ delete t.dataset.auto; return; }   // 手で直したら自動上書きしない
     if(t.dataset.f !== 'final_amount') return;
     var v = Number(t.value), base = v > 0 ? Math.round(v / 1.3) : 0;

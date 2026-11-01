@@ -23,6 +23,15 @@
     takuhai: ['new', 'kit_sent', 'arrived', 'appraised', 'accepted', 'done']
   };
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  // お品物の内訳（商品番号・商品名・点数・買取価格／おまとめ）
+  function linesHtml(c){
+    var L = c.lines || []; if(!L.length) return '';
+    var mm = c.priceMode === 'matome' || c.priceMode === 'hybrid';
+    return '<table class="lines-view"><thead><tr><th>番号</th><th>お品物</th><th>点数</th><th>買取価格</th></tr></thead><tbody>'
+      + L.map(function(x){ return '<tr><td>' + esc(x.no) + '</td><td>' + esc(x.name) + (x.up === false ? '<br><small>（30%上乗せの対象外）</small>' : '') + '</td><td>' + esc(x.qty) + '</td><td>' + (mm && (c.priceMode === 'matome' || x.matome) ? 'おまとめ' : (x.price != null ? yen(x.price) : '―')) + '</td></tr>'; }).join('')
+      + (mm && c.matomeAmount != null ? '<tr class="sum"><td colspan="3">おまとめ価格</td><td>' + yen(c.matomeAmount) + '</td></tr>' : '')
+      + '</tbody></table>';
+  }
   function yen(n){ return Number(n).toLocaleString('ja-JP') + '円'; }
   function dt(s, withTime){ if(!s) return ''; var d = new Date(s); return d.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' }) + (withTime ? ' ' + d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''); }
   function say(el, t, cls){ $(el).innerHTML = t ? '<p class="msg ' + (cls || 'bad') + '">' + t + '</p>' : ''; }
@@ -110,7 +119,7 @@
     if(hasPrice && (c.status === 'appraised' || c.answer)){
       var price = c.finalAmount != null ? yen(c.finalAmount) : (c.estimateHigh && c.estimateHigh !== c.estimateLow ? yen(c.estimateLow) + ' 〜 ' + yen(c.estimateHigh) : yen(c.estimateLow));
       h += '<div class="note blue" style="margin-top:12px"><p>' + (c.finalAmount != null ? '査定金額' : 'おおよその買取金額') + '</p><p class="price">' + price + '</p>'
-        + (c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
+        + linesHtml(c) + (c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
         + (c.kind === 'photo' ? '<p style="margin-top:6px"><small>写真からの目安です。実物を拝見して正式な金額をお伝えします。</small></p>' : '');
       if(c.status === 'appraised')
         h += '<div class="actions"><button class="btn primary" data-answer="accept">' + (c.kind === 'photo' ? 'この金額なら売りたい' : 'この金額で売る') + '</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
@@ -167,7 +176,7 @@
     if(c.finalAmount != null && (c.status === 'appraised' || c.answer)){
       h += '<div class="note blue" style="margin-top:12px"><p>' + (c.plan === 'matome' ? 'おまとめ価格' : '買取価格（提携先ご紹介の高価買取）') + '</p><p class="price">' + yen(c.finalAmount) + '</p>'
         + (c.plan === 'kodaka' ? '<p><small>' + (c.baseAmount != null ? '通常の査定額 ' + yen(c.baseAmount) + '　' : '') + '※貴金属・商品券は30%上乗せの対象外です</small></p>' : '')
-        + (c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
+        + linesHtml(c) + (c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
         + (c.plan === 'matome' ? '<p style="margin-top:6px"><small>価格がつかなかったお品物も、処分費などは一切かかりません（おまとめ買取として当店で処分いたします）。</small></p>' : '');
       if(c.status === 'appraised') h += '<div class="actions"><button class="btn primary" data-answer="accept">この金額で売る</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
       else if(c.answer) h += '<p style="margin-top:8px"><b>' + (c.answer === 'accept' ? 'ご同意いただきました。ご登録の口座へお振込みいたします。' : '見送りを承りました。担当者からご連絡します。') + '</b></p>';
