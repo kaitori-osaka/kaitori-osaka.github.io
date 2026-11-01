@@ -309,3 +309,5 @@ p{margin:0}
 @keyframes heroPan{0%{transform:scale(1) translate(0,0)}50%{transform:scale(1.08) translate(-2%,-1%)}100%{transform:scale(1.04) translate(2%,1%)}}
 @media (prefers-reduced-motion:reduce){.hero-bg img{animation:none}}
 .sign.hero .board{background:rgba(255,255,255,.96)}
+.item .pic:has(img.photo){background:#fff}
+.item .pic img.photo{object-fit:contain}
