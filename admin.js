@@ -45,9 +45,14 @@
   // ── ログイン ──
   $('loginForm').addEventListener('submit', async function(ev){
     ev.preventDefault(); $('loginMsg').innerHTML = '';
-    try{ SESS = await API.call('staffLogin', { password: $('pw').value }); SS.set(SESS); $('pw').value = ''; await enter(); }
+    try{
+      SESS = await API.call('staffLogin', { id: $('lid').value.trim(), password: $('pw').value }); SS.set(SESS); $('pw').value = '';
+      try{ localStorage.setItem('kd-lid', $('lid').value.trim()); if(SESS.name) localStorage.setItem('kd-actor', SESS.name); }catch(e){}
+      await enter();
+    }
     catch(e){ $('loginMsg').innerHTML = '<p class="msg bad">' + esc(e.message) + '</p>'; }
   });
+  try{ var lid0 = localStorage.getItem('kd-lid'); if(lid0) $('lid').value = lid0; }catch(e){}
   $('logout').addEventListener('click', function(){ SS.set(null); location.reload(); });
 
   async function enter(){
