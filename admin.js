@@ -72,7 +72,12 @@
     try{
       var j = await call('staffList'); ROWS = j.rows; ROSTER = j.roster;
       drawList();
-      if(CUR && quiet) { var c = ROWS.filter(function(r){ return r.id === CUR; })[0]; if(c && c.unread_staff > 0) open(CUR); }
+      // 開いているお申込みが、お客様側の操作（振込先の登録など）で変わっていたら表示し直す（入力中は待つ）
+      if(CUR){
+        var c = ROWS.filter(function(r){ return r.id === CUR; })[0], ae = document.activeElement;
+        var typing = ae && $('detail').contains(ae) && /INPUT|TEXTAREA|SELECT/.test(ae.tagName);
+        if(c && (c.unread_staff > 0 || c.updated_at !== SHOWN) && !(quiet && typing)) open(CUR);
+      }
     }catch(e){ say(e.message); }
   }
   function filtered(){
@@ -113,9 +118,11 @@
   $('list').addEventListener('click', function(ev){ var b = ev.target.closest('.row'); if(b) open(b.dataset.id); });
 
   // ── 詳細 ──
+  var SHOWN = null;
   async function open(id){
     CUR = id; drawList();
     var r = ROWS.filter(function(x){ return x.id === id; })[0]; if(!r) return;
+    SHOWN = r.updated_at;
     try{ history.replaceState(null, '', '#' + r.receipt_no); }catch(e){}
     var d = $('detail');
     d.innerHTML = '<p class="empty">読み込んでいます…</p>';
@@ -241,6 +248,7 @@
       + (r.item_note ? '<dt>内容</dt><dd style="white-space:pre-wrap">' + esc(r.item_note) + '</dd>' : '')
       + (r.quantity ? '<dt>量</dt><dd>' + esc(r.quantity) + '</dd>' : '')
       + (r.kind === 'takuhai' && !r.plan ? '<dt>キット</dt><dd>' + (r.kit_boxes ? r.kit_boxes + '箱' : '不要') + '</dd>' : '')
+      + (r.bank || r.plan ? '<dt>振込先</dt><dd>' + (r.bank ? '<b>' + esc(r.bank) + '</b>' : '<span class="tag new">未登録</span>') + '</dd>' : '')
       + (r.plan ? '<dt>プラン</dt><dd><b>' + PLAN_LONG[r.plan] + '</b>' + (r.plan === 'kodaka' ? (r.pre_est ? '（仮査定あり）' : '（仮査定なし）') : '') + '</dd>' : '')
       + (wish ? '<dt>希望日時</dt><dd>' + wish + '</dd>' : '')
       + '</dl></div>';
@@ -490,7 +498,7 @@
         await call('staffNotify', { id: r.id, kind: 'estimate', actor: who, body: (r.kind === 'photo' ? 'おおよその買取金額：' + yen(patch.estimate_low) + (patch.estimate_high !== patch.estimate_low ? ' 〜 ' + yen(patch.estimate_high) : '') : '査定金額：' + yen(patch.final_amount)) + (patch.estimate_note ? '\n\n' + patch.estimate_note : '') });
         say('金額をお客様に知らせました', 'ok');
       }
-      if(act === 'save-bank'){ await call('staffUpdate', { id: r.id, patch: { bank: g('bank').trim() || null } }); await log(r.id, '振込先を保存'); say('振込先を保存しました', 'ok'); }
+      if(act === 'save-bank'){ if(!g('bank').trim() && r.bank && !confirm('登録済みの振込先を空にします。よろしいですか？')) throw null; await call('staffUpdate', { id: r.id, patch: { bank: g('bank').trim() || null } }); await log(r.id, '振込先を保存'); say('振込先を保存しました', 'ok'); }
       if(act === 'pre-estimate'){
         var lo2 = Number(g('estimate_low')), hi2 = Number(g('estimate_high') || g('estimate_low'));
         if(!lo2 || lo2 < 0) throw new Error('下限の金額を入れてください'); if(hi2 < lo2) throw new Error('上限は下限以上にしてください');
