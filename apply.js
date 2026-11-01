@@ -106,7 +106,7 @@
       + '<p style="margin-top:12px">' + next + '</p>'
       + (total ? '<p class="msg ' + (okN === total ? 'ok' : 'warn') + '">写真 ' + okN + ' / ' + total + ' 枚を送りました' + (okN < total ? '。届かなかった写真は「お申込み状況」の連絡欄からお知らせください' : '') + '</p>' : '')
       + (hasMail ? '<p style="margin-top:8px">確認のメールをお送りしました。届かない場合は、迷惑メールのフォルダもご確認ください。</p>' : '')
-      + '<div class="actions">' + (hasMail ? '<a class="btn blue" href="/status/">お申込み状況を見る</a>' : '') + '<a class="btn ghost" href="/">トップへ戻る</a></div>';
+      + '<div class="actions">' + (hasMail ? '<a class="btn blue" href="status.html">お申込み状況を見る</a>' : '') + '<a class="btn ghost" href="index.html">トップへ戻る</a></div>';
     f.hidden = true; d.hidden = false; d.scrollIntoView({ behavior: 'smooth' });
   }
 })();

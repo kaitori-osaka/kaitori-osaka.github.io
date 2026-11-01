@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理画面｜買取大吉 大阪勝山南店</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="admin.css">
+<script src="config.js"></script>
+<script src="api.js" defer></script>
+<script src="admin.js" defer></script>
+</head><body class="adm">
+<header class="hd"><div class="wrap">
+<a class="brand" href="admin.html"><b>買取大吉</b><span>勝山南店 管理画面</span></a>
+<div class="who" id="who" hidden>
+<label>操作する人 <select id="actor"></select></label>
+<button class="menu-btn" id="logout" type="button">ログアウト</button>
+</div>
+</div></header>
+
+<main class="wrap" id="main">
+<section id="loginBox" class="login">
+<h1>担当者ログイン</h1>
+<form id="loginForm" class="form">
+<input type="text" autocomplete="username" value="勝山南店" hidden>
+<div class="f"><label for="pw">パスワード</label><input type="password" id="pw" autocomplete="current-password" required></div>
+<button class="btn blue" type="submit">ログイン</button>
+<div id="loginMsg" role="alert"></div>
+</form>
+</section>
+
+<section id="app" hidden>
+<div class="bar">
+<div class="tabs" role="tablist">
+<button data-tab="todo" class="on">要対応 <span class="cnt" id="cTodo"></span></button>
+<button data-tab="open">進行中 <span class="cnt" id="cOpen"></span></button>
+<button data-tab="all">すべて</button>
+</div>
+<div class="filters">
+<select id="fKind" aria-label="方法で絞り込む"><option value="">すべての方法</option><option value="shop">店頭</option><option value="visit">出張</option><option value="photo">写真査定</option><option value="takuhai">宅配</option></select>
+<input type="search" id="fq" placeholder="名前・電話・受付番号" aria-label="検索">
+<button class="btn ghost small" id="csv" type="button">表を書き出す</button>
+<button class="btn ghost small" id="reload" type="button">更新</button>
+</div>
+</div>
+<div id="appMsg" role="alert"></div>
+<div class="split">
+<div class="list" id="list"></div>
+<div class="detail" id="detail"><p class="empty">左の一覧から案件を選んでください。</p></div>
+</div>
+</section>
+</main>
+<div class="lightbox" id="lb" hidden><img alt="拡大した写真"><button type="button" aria-label="閉じる">×</button></div>
+</body></html>

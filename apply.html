@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>お申込み｜買取大吉 大阪勝山南店</title>
+<meta name="description" content="大阪市生野区の買取専門店「買取大吉 大阪勝山南店」。金・プラチナ・ダイヤモンド・ブランド品・時計・切手・古銭などを無料査定。店頭・出張・写真査定・宅配の4つの方法で買い取ります。年中無休 10:00〜19:00。">
+
+<meta name="theme-color" content="#1546A0">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<link rel="stylesheet" href="site.css">
+<script src="config.js"></script>
+</head><body>
+<a class="skip" href="#main">本文へ移動</a>
+<div class="trial" id="trialBar" hidden>現在は試験運用中です。実在のお名前・ご住所は入力しないでください。</div>
+<div class="util"><div class="wrap"><span>年中無休　10:00〜19:00</span><a href="tel:0120933496"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg> 0120-933-496（通話無料）</a></div></div>
+<header class="hd"><div class="wrap">
+<a class="brand" href="index.html"><b>買取大吉</b><span>大阪勝山南店</span></a>
+<nav class="nav" aria-label="メニュー"><a href="shop.html">店頭買取</a><a href="visit.html">出張買取</a><a href="photo.html">写真査定</a><a href="takuhai.html">宅配買取</a><a href="items.html">買取品目</a><a href="store.html">店舗・アクセス</a><a href="faq.html">よくある質問</a><a href="status.html">お申込み状況</a></nav>
+<button class="menu-btn" type="button" aria-expanded="false" aria-controls="drawer">メニュー</button>
+</div><nav class="drawer" id="drawer" hidden aria-label="メニュー"><a href="shop.html">店頭買取</a><a href="visit.html">出張買取</a><a href="photo.html">写真査定</a><a href="takuhai.html">宅配買取</a><a href="items.html">買取品目</a><a href="store.html">店舗・アクセス</a><a href="faq.html">よくある質問</a><a href="status.html">お申込み状況</a></nav></header>
+<main id="main">
+<div class="ph"><div class="wrap"><h1>お申込み</h1><p>必要なことだけ入力してください。受付のあと、担当者からご連絡します。お急ぎの方はお電話が早く確実です。</p></div></div><div class="wrap crumb"><a href="index.html">トップ</a> ／ お申込み</div>
+<section class="band"><div class="wrap">
+<form class="form" id="applyForm" novalidate>
+<fieldset class="fs"><legend>ご希望の方法</legend><div class="kinds"><label><input type="radio" name="kind" value="shop" required><span><b>店頭買取</b><span>お品物を持ってご来店。その場で査定し、ご納得いただければ現金でお支払いします。予約なしでも大丈夫です。</span></span></label><label><input type="radio" name="kind" value="visit" required><span><b>出張買取</b><span>大きい物・量が多い物・外出が難しい方に。ご指定の日時にご自宅へ伺い、その場で査定します。</span></span></label><label><input type="radio" name="kind" value="photo" required><span><b>写真査定</b><span>売るか決める前に、写真を送っておおよその金額を知りたい方に。結果はメールでお知らせします。</span></span></label><label><input type="radio" name="kind" value="takuhai" required><span><b>宅配買取</b><span>お店に行けない方に。箱に詰めて送るだけで、届いたお品物を査定して金額をお知らせします。</span></span></label></div></fieldset>
+
+<fieldset class="fs"><legend>お客様の情報</legend>
+<div class="f"><label for="name">お名前<span class="req">必須</span></label><input type="text" id="name" name="name" autocomplete="name" required maxlength="60"></div>
+<div class="f"><label for="kana">ふりがな<span class="opt">任意</span></label><input type="text" id="kana" name="kana" maxlength="60"></div>
+<div class="f"><label for="phone">電話番号<span class="req">必須</span></label><input type="tel" id="phone" name="phone" autocomplete="tel" inputmode="tel" required maxlength="20"><p class="hint">ハイフンはあってもなくても大丈夫です</p></div>
+<div class="f"><label for="email">メールアドレス<span class="req" data-show="photo takuhai">必須</span><span class="opt" data-show="shop visit">任意</span></label><input type="email" id="email" name="email" autocomplete="email" maxlength="120"><p class="hint">受付と査定結果のお知らせをお送りします。「お申込み状況」の確認にも使います</p></div>
+<div data-show="visit takuhai">
+<div class="f"><label for="postal">郵便番号<span class="opt">任意</span></label><input type="text" id="postal" name="postal" autocomplete="postal-code" inputmode="numeric" maxlength="8"></div>
+<div class="f"><label for="address">ご住所<span class="req">必須</span></label><input type="text" id="address" name="address" autocomplete="street-address" maxlength="200"><p class="hint" data-show="takuhai">簡易書留でご本人確認の郵便をお送りします。身分証と同じご住所をご記入ください</p></div>
+</div>
+<div class="f"><span class="lb">ご連絡の方法</span><div class="choices"><label><input type="radio" name="contactPref" value="phone" checked>電話</label><label><input type="radio" name="contactPref" value="email">メール</label><label><input type="radio" name="contactPref" value="either">どちらでも</label></div></div>
+</fieldset>
+
+<fieldset class="fs"><legend>お品物</legend>
+<div class="f"><span class="lb">品目<span class="opt">いくつでも</span></span><div class="choices"><label><input type="checkbox" name="items" value="金・貴金属">金・貴金属</label><label><input type="checkbox" name="items" value="宝石・ジュエリー">宝石・ジュエリー</label><label><input type="checkbox" name="items" value="時計">時計</label><label><input type="checkbox" name="items" value="バッグ">バッグ</label><label><input type="checkbox" name="items" value="財布">財布</label><label><input type="checkbox" name="items" value="服">服</label><label><input type="checkbox" name="items" value="お酒">お酒</label><label><input type="checkbox" name="items" value="切手">切手</label><label><input type="checkbox" name="items" value="金券・チケット">金券・チケット</label><label><input type="checkbox" name="items" value="記念コイン・メダル">記念コイン・メダル</label><label><input type="checkbox" name="items" value="古銭">古銭</label><label><input type="checkbox" name="items" value="カメラ">カメラ</label><label><input type="checkbox" name="items" value="スマホ・タブレット">スマホ・タブレット</label><label><input type="checkbox" name="items" value="テレホンカード">テレホンカード</label><label><input type="checkbox" name="items" value="その他">その他</label></div></div>
+<div class="f"><label for="itemNote">くわしい内容<span class="opt">任意</span></label><textarea id="itemNote" name="itemNote" maxlength="2000" placeholder="例：18金のネックレス2本と、動かない腕時計1本"></textarea></div>
+<div class="f" data-show="visit takuhai"><label for="quantity">おおよその量<span class="opt">任意</span></label><input type="text" id="quantity" name="quantity" maxlength="100" placeholder="例：段ボール2箱くらい"></div>
+<div class="f" data-show="takuhai"><label for="kitBoxes">宅配キットの箱数</label><select id="kitBoxes" name="kitBoxes"><option value="0">キットは不要（手持ちの箱で送る）</option><option value="1" selected>1箱</option><option value="2">2箱</option><option value="3">3箱</option></select></div>
+<div class="f" data-show="photo shop visit takuhai"><span class="lb">写真<span class="req" data-show="photo">必須</span><span class="opt" data-show="shop visit takuhai">任意</span></span>
+<input type="file" id="photos" accept="image/*" multiple hidden>
+<button type="button" class="btn ghost small" id="pickPhotos"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg> 写真を選ぶ・撮る</button>
+<p class="hint">6枚まで。刻印・ブランド名・傷の部分の写真があると、金額がより正確になります</p>
+<div class="thumbs" id="thumbs"></div></div>
+</fieldset>
+
+<fieldset class="fs" data-show="shop visit"><legend id="wishLegend">ご希望の日時</legend>
+<p class="hint" style="margin-bottom:8px">第3希望まで。日時は担当者からのご連絡で確定します</p>
+<div class="wish"><input type="date" name="wdate" aria-label="第1希望の日付"><select name="wslot" aria-label="第1希望の時間帯"><option value="">時間帯</option><option>午前（10〜12時）</option><option>昼（12〜15時）</option><option>夕方（15〜19時）</option></select></div>
+<div class="wish"><input type="date" name="wdate" aria-label="第2希望の日付"><select name="wslot" aria-label="第2希望の時間帯"><option value="">時間帯</option><option>午前（10〜12時）</option><option>昼（12〜15時）</option><option>夕方（15〜19時）</option></select></div>
+<div class="wish"><input type="date" name="wdate" aria-label="第3希望の日付"><select name="wslot" aria-label="第3希望の時間帯"><option value="">時間帯</option><option>午前（10〜12時）</option><option>昼（12〜15時）</option><option>夕方（15〜19時）</option></select></div>
+</fieldset>
+
+<fieldset class="fs"><legend>最後に</legend>
+<div class="f"><label for="howFound">当店を知ったきっかけ<span class="opt">任意</span></label><select id="howFound" name="howFound"><option value="">選んでください</option><option>店舗の看板を見て</option><option>インターネット検索</option><option>地図アプリ</option><option>チラシ</option><option>家族・知人の紹介</option><option>以前に利用した</option><option>その他</option></select></div>
+<div class="f"><label class="check"><input type="checkbox" name="adult" required><span>18歳以上です<span class="req">必須</span></span></label></div>
+<div class="f"><label class="check"><input type="checkbox" name="consent" required><span><a href="privacy.html" target="_blank">個人情報の取扱い</a>に同意します<span class="req">必須</span></span></label></div>
+<div class="hp" aria-hidden="true"><label>空欄のまま<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+</fieldset>
+<div id="formMsg" role="alert"></div>
+<button type="submit" class="btn primary" id="submitBtn" style="width:100%">この内容で申し込む</button>
+</form>
+<div class="done" id="done" hidden></div>
+</div></section>
+
+</main>
+<footer class="ft"><div class="wrap">
+<div class="cols">
+<div><h2>買取大吉 大阪勝山南店</h2>
+<p>〒544-0021 大阪府大阪市生野区勝山南2-2-7<br>JR大阪環状線「桃谷駅」から徒歩13分<br>営業時間 10:00〜19:00（年中無休）<br>電話 <a href="tel:0120933496">0120-933-496</a>（通話無料）</p></div>
+<div><h2>買取の方法</h2><ul><li><a href="shop.html">店頭買取</a></li><li><a href="visit.html">出張買取</a></li><li><a href="photo.html">写真査定</a></li><li><a href="takuhai.html">宅配買取</a></li><li><a href="apply.html">お申込み</a></li><li><a href="status.html">お申込み状況</a></li></ul></div>
+<div><h2>ご案内</h2><ul><li><a href="items.html">買取品目</a></li><li><a href="store.html">店舗・アクセス</a></li><li><a href="faq.html">よくある質問</a></li><li><a href="privacy.html">個人情報の取扱い</a></li><li><a href="legal.html">法令に基づく表示</a></li></ul></div>
+</div>
+<p class="legal">古物営業法に基づく表示：株式会社グローブ　大阪府公安委員会許可　第62102R050377号<br>「買取大吉」は株式会社エンパワーが展開する買取専門店のブランドです。当店は加盟店として株式会社グローブが運営しています。</p>
+</div></footer>
+<nav class="dock" aria-label="すぐに連絡">
+<a class="tel" href="tel:0120933496"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>電話する</a>
+<a href="apply.html?t=photo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg>写真で査定</a>
+<a href="apply.html?t=shop"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9M3 9v11h18V9M3 9h18M9 20v-6h6v6"/></svg>来店予約</a>
+</nav>
+<script src="site.js" defer></script><script src="api.js" defer></script><script src="apply.js" defer></script>
+</body></html>

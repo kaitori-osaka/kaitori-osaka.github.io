@@ -47,7 +47,7 @@
   var ALL = [];
   async function load(){
     ALL = await API.call('portalCases', { s: SESS.s });
-    if(!ALL.length){ $('cases').innerHTML = '<p class="note blue">このメールアドレスでのお申込みは見つかりませんでした。お申込みのときと同じメールアドレスかご確認ください。<br><a href="/apply/">新しく申し込む</a></p>'; return; }
+    if(!ALL.length){ $('cases').innerHTML = '<p class="note blue">このメールアドレスでのお申込みは見つかりませんでした。お申込みのときと同じメールアドレスかご確認ください。<br><a href="apply.html">新しく申し込む</a></p>'; return; }
     $('cases').innerHTML = ALL.map(card).join('');
   }
 
