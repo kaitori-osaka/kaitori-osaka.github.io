@@ -300,3 +300,12 @@ p{margin:0}
 .nowbox .next{padding:12px 14px;font-size:1.15rem;font-weight:700;line-height:1.6;background:#fff}
 .nowbox .next small{display:block;font-weight:400;font-size:.9rem;color:var(--mute);margin-top:4px}
 .nowbox.end{border-color:var(--line)}.nowbox.end .now{background:#F4F6FA}
+
+/* トップ上部：背景の写真（ゆっくり動く）＋紺色の透かし板 */
+.sign.hero{background:#0B0050;isolation:isolate}
+.hero-bg{position:absolute;inset:0;z-index:-1;overflow:hidden}
+.hero-bg img{position:absolute;left:-8%;top:-8%;width:116%;height:116%;max-width:none;object-fit:cover;filter:blur(.5px) saturate(1.1);animation:heroPan 28s ease-in-out infinite alternate;will-change:transform}
+.hero-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,rgba(16,1,105,.88) 0%,rgba(16,1,105,.72) 45%,rgba(16,1,105,.45) 100%)}
+@keyframes heroPan{0%{transform:scale(1) translate(0,0)}50%{transform:scale(1.08) translate(-2%,-1%)}100%{transform:scale(1.04) translate(2%,1%)}}
+@media (prefers-reduced-motion:reduce){.hero-bg img{animation:none}}
+.sign.hero .board{background:rgba(255,255,255,.96)}
