@@ -7,7 +7,15 @@
   var $ = function(id){ return document.getElementById(id); };
   var KIND = { shop: '店頭買取（来店予約）', visit: '出張買取', photo: '写真査定', takuhai: '宅配買取' };
   var ST = { new: '受付済み', contacted: 'ご連絡済み', scheduled: '日時確定', kit_sent: 'キット発送済み', arrived: 'お品物到着',
-             appraised: '金額をご確認ください', accepted: 'ご成約', declined: '見送り', done: '完了', cancelled: '取消' };
+             appraised: '金額をご確認ください', accepted: 'ご成約', declined: '見送り', done: '完了', cancelled: '取消',
+             pre_appraised: '仮査定をご確認ください', waiting: 'お品物の発送をお待ちしています', shipped: '発送済み（到着待ち）', paid: 'お振込み済み' };
+  var PLAN = { matome: 'A おまとめ簡易買取', kodaka: 'B 提携先ご紹介 30%高価買取' };
+  // 提携先プランの流れ（お客様に見せる手順）
+  var PFLOW = {
+    matome: [['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', 'おまとめ価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']],
+    kodaka: [['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', '30%上乗せの買取価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']],
+    kodaka_pre: [['new', '写真で仮査定中'], ['pre_appraised', '仮査定のご確認'], ['waiting', 'お品物を着払いで発送'], ['shipped', '発送済み'], ['arrived', '当店に到着・査定中'], ['appraised', '30%上乗せの買取価格のご確認'], ['accepted', 'ご同意'], ['paid', 'お振込み']]
+  };
   var FLOW = {
     shop: ['new', 'contacted', 'scheduled', 'done'],
     visit: ['new', 'contacted', 'scheduled', 'accepted', 'done'],
@@ -52,6 +60,7 @@
   }
 
   function card(c){
+    if(c.plan) return planCard(c);
     var flow = FLOW[c.kind], idx = flow.indexOf(c.status);
     if(c.status === 'declined' || c.status === 'cancelled') idx = -1;
     var pill = c.status === 'appraised' ? 'go' : (c.status === 'accepted' || c.status === 'done') ? 'ok' : (c.status === 'declined' || c.status === 'cancelled') ? 'end' : '';
@@ -89,12 +98,76 @@
     return h + '</article>';
   }
 
+  function planCard(c){
+    var key = c.plan === 'kodaka' && c.preEst ? 'kodaka_pre' : c.plan, steps = PFLOW[key] || PFLOW.matome;
+    var order = steps.map(function(x){ return x[0]; });
+    var idx = c.status === 'done' ? order.length : order.indexOf(c.status);
+    if(c.status === 'contacted' || c.status === 'kit_sent') idx = order.indexOf('waiting');
+    var closed = c.status === 'declined' || c.status === 'cancelled';
+    var pill = (c.status === 'appraised' || c.status === 'pre_appraised' || c.status === 'waiting') ? 'go' : (c.status === 'accepted' || c.status === 'paid' || c.status === 'done') ? 'ok' : closed ? 'end' : '';
+    var h = '<article class="case" data-case="' + c.id + '"><div class="top"><div><b>宅配買取・' + PLAN[c.plan] + '</b><br><small>受付番号 ' + esc(c.receiptNo) + '・' + dt(c.createdAt) + '</small></div><span class="pill ' + pill + '">' + (ST[c.status] || c.status) + '</span></div>';
+    if(!closed){
+      h += '<ol class="track" aria-label="進み具合">' + order.map(function(s, i){ return '<li class="' + (i <= idx ? 'on' : '') + '"></li>'; }).join('') + '</ol>';
+      h += '<div class="flowbox"><b>お取引の流れ</b><ol>' + steps.map(function(x, i){ return '<li class="' + (i < idx ? 'done' : i === idx ? 'on' : '') + '">' + x[1] + (i === idx ? '　←いまここ' : '') + '</li>'; }).join('') + '</ol></div>';
+    }
+    // 仮査定
+    if(c.estimateLow != null && (c.status === 'pre_appraised' || c.preEst)){
+      var pr = c.estimateHigh && c.estimateHigh !== c.estimateLow ? yen(c.estimateLow) + ' 〜 ' + yen(c.estimateHigh) : yen(c.estimateLow);
+      h += '<div class="note blue" style="margin-top:12px"><p>仮査定（30%上乗せ後の目安）</p><p class="price">' + pr + '</p>'
+        + (c.status === 'pre_appraised' && c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
+        + '<p style="margin-top:6px"><small>写真からの目安です。お品物の到着後に本査定を行い、正式な金額をお知らせします。</small></p>';
+      if(c.status === 'pre_appraised') h += '<div class="actions"><button class="btn primary" data-answer="accept">この内容でお品物を送る</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
+      h += '</div>';
+    }
+    // 発送のご案内
+    if(c.status === 'waiting' || c.status === 'contacted' || c.status === 'kit_sent' || (c.status === 'new' && !c.preEst)){
+      if(c.kitBoxes > 0) h += '<p style="margin-top:12px"><b>宅配キット（' + c.kitBoxes + '箱）：</b>' + (c.kitTracking ? '発送しました（追跡番号 ' + esc(c.kitTracking) + '）。届いたら下の方法でお送りください。' : 'ただいま準備しています。発送したらメールでお知らせします。') + '</p>';
+      h += '<div class="note" style="margin-top:12px"><b>お品物の送り方</b><ol style="margin:6px 0 0;padding-left:1.4em"><li>お品物を' + (c.kitBoxes > 0 ? '宅配キットの' : '') + '箱に詰める（箱の数はいくつでも）</li><li>箱の中に<b>受付番号「' + esc(c.receiptNo) + '」とお名前</b>を書いたメモを入れる</li><li>宅配便の<b>着払い</b>で次のあてに送る</li></ol>'
+        + '<p style="margin-top:8px;white-space:pre-wrap">' + esc(c.sendTo) + '</p>'
+        + '<div class="f" style="margin-top:10px"><label>送り状の追跡番号（わかれば）</label><input type="text" maxlength="40" inputmode="numeric" data-track></div>'
+        + '<div class="actions"><button class="btn primary" data-ship>発送しました</button></div></div>';
+    }
+    if(c.status === 'shipped') h += '<p style="margin-top:10px">発送のご連絡を受け付けました' + (c.shipTracking ? '（追跡番号 ' + esc(c.shipTracking) + '）' : '') + '。到着しましたらお知らせします。</p>';
+    if(c.arrivedAt && ['arrived'].indexOf(c.status) >= 0) h += '<p style="margin-top:10px">' + dt(c.arrivedAt) + 'にお品物が到着しました。ただいま査定しています。</p>';
+    // 本査定の金額
+    if(c.finalAmount != null && (c.status === 'appraised' || c.answer)){
+      h += '<div class="note blue" style="margin-top:12px"><p>' + (c.plan === 'matome' ? 'おまとめ価格' : '買取価格（提携先ご紹介 30%上乗せ）') + '</p><p class="price">' + yen(c.finalAmount) + '</p>'
+        + (c.plan === 'kodaka' && c.baseAmount != null ? '<p><small>通常の査定額 ' + yen(c.baseAmount) + ' ＋ ご紹介特典 ' + yen(c.finalAmount - c.baseAmount) + '</small></p>' : '')
+        + (c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
+        + (c.plan === 'matome' ? '<p style="margin-top:6px"><small>価格がつかなかったお品物も、処分費などは一切かかりません（おまとめ買取として当店で処分いたします）。</small></p>' : '');
+      if(c.status === 'appraised') h += '<div class="actions"><button class="btn primary" data-answer="accept">この金額で売る</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
+      else if(c.answer) h += '<p style="margin-top:8px"><b>' + (c.answer === 'accept' ? 'ご同意いただきました。ご登録の口座へお振込みいたします。' : '見送りを承りました。担当者からご連絡します。') + '</b></p>';
+      h += '</div>';
+    }
+    if(c.status === 'paid' || c.status === 'done') h += '<p style="margin-top:10px"><b>' + (c.paidAt ? dt(c.paidAt) + 'に' : '') + 'お振込みいたしました。</b>ご利用ありがとうございました。</p>';
+    // 振込先
+    if(!closed && ['paid', 'done'].indexOf(c.status) < 0){
+      h += c.bankSet ? '<p style="margin-top:8px"><small>お振込先：登録済み（変更はお電話か下の連絡欄でお知らせください）</small></p>'
+        : '<div class="note" style="margin-top:12px"><b>お振込先の口座をご登録ください</b><p><small>お申込みの方ご本人名義の口座に限ります。</small></p>'
+          + '<div class="f"><label>金融機関名</label><input type="text" maxlength="40" data-bk="n"></div><div class="f"><label>支店名</label><input type="text" maxlength="40" data-bk="b"></div>'
+          + '<div class="f"><label>預金の種類</label><select data-bk="t"><option>普通</option><option>当座</option></select></div>'
+          + '<div class="f"><label>口座番号</label><input type="text" maxlength="8" inputmode="numeric" data-bk="no"></div><div class="f"><label>口座名義（カタカナ）</label><input type="text" maxlength="40" data-bk="h"></div>'
+          + '<div class="actions"><button class="btn blue small" data-bank>振込先を登録する</button></div></div>';
+    }
+    // 本人確認
+    if(c.idStatus === 'none' && !closed && ['paid', 'done'].indexOf(c.status) < 0)
+      h += '<div class="note" style="margin-top:12px"><b>ご本人確認の書類をお送りください</b><p>運転免許証・マイナンバーカード（顔写真の面のみ）・パスポートなどの画像を送ってください。両面ある身分証は表と裏の両方をお願いします。</p>'
+        + '<input type="file" accept="image/*" multiple hidden data-idfile><div class="actions"><button class="btn blue small" data-idpick>身分証の画像を選ぶ・撮る</button></div><div data-idmsg></div></div>';
+    if(c.idStatus !== 'none') h += '<p style="margin-top:8px"><small>ご本人確認の書類：' + (c.idStatus === 'verified' ? '確認済み' : '受け取りました（確認中）') + '</small></p>';
+    var ms = c.messages || [];
+    h += '<details style="margin-top:12px"' + (ms.some(function(m){ return m.sender === 'staff'; }) ? ' open' : '') + '><summary><b>担当者との連絡（' + ms.length + '件）</b></summary><div class="thread">'
+      + ms.map(function(m){ return '<div class="bubble ' + m.sender + '">' + esc(m.body) + '<time>' + (m.sender === 'staff' ? '担当者・' : m.sender === 'customer' ? 'あなた・' : '') + dt(m.at, true) + '</time></div>'; }).join('')
+      + '</div><div class="f" style="margin-top:10px"><textarea maxlength="2000" placeholder="担当者へのご連絡" data-body></textarea></div><button class="btn blue small" data-send>送る</button></details>';
+    return h + '</article>';
+  }
+
   document.addEventListener('click', async function(ev){
     var t = ev.target.closest('button'); if(!t) return;
     var art = t.closest('[data-case]'); if(!art) return;
     var id = art.dataset.case;
     if(t.dataset.answer){
-      var ok = t.dataset.answer === 'accept' ? confirm('この金額で進めます。よろしいですか？') : confirm('今回は見送ります。よろしいですか？');
+      var isPre = (ALL.filter(function(x){ return x.id === id; })[0] || {}).status === 'pre_appraised';
+      var ok = t.dataset.answer === 'accept' ? confirm(isPre ? 'この内容で、お品物を送る手続きに進みます。よろしいですか？' : 'この金額で進めます。よろしいですか？') : confirm('今回は見送ります。よろしいですか？');
       if(!ok) return;
       t.disabled = true;
       try{ await API.call('portalAnswer', { s: SESS.s, app: id, answer: t.dataset.answer }); await load(); say('stMsg', 'ご回答を承りました。担当者からご連絡します。', 'ok'); }
@@ -107,6 +180,20 @@
       catch(e){ say('stMsg', e.message); t.disabled = false; }
     }
     if(t.hasAttribute('data-idpick')) art.querySelector('[data-idfile]').click();
+    if(t.hasAttribute('data-ship')){
+      if(!confirm('お品物を発送したことを当店に知らせます。よろしいですか？')) return;
+      t.disabled = true;
+      try{ await API.call('portalShip', { s: SESS.s, app: id, tracking: (art.querySelector('[data-track]') || {}).value || '' }); await load(); say('stMsg', '発送のご連絡を受け付けました。到着しましたらお知らせします。', 'ok'); }
+      catch(e){ say('stMsg', e.message); t.disabled = false; }
+    }
+    if(t.hasAttribute('data-bank')){
+      var g = function(k){ return ((art.querySelector('[data-bk="' + k + '"]') || {}).value || '').trim(); };
+      var no = g('no').replace(/[^0-9]/g, '');
+      if(!g('n') || !g('b') || no.length < 6 || !g('h')){ say('stMsg', '金融機関名・支店名・口座番号・名義をすべてご記入ください'); return; }
+      t.disabled = true;
+      try{ await API.call('portalBank', { s: SESS.s, app: id, bank: g('n') + ' ' + g('b') + ' ' + g('t') + ' ' + no + ' ' + g('h') }); await load(); say('stMsg', 'お振込先を登録しました。', 'ok'); }
+      catch(e){ say('stMsg', e.message); t.disabled = false; }
+    }
   });
   document.addEventListener('change', async function(ev){
     if(!ev.target.hasAttribute('data-idfile')) return;

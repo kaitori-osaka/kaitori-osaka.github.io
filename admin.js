@@ -7,12 +7,30 @@
   function call(action, data){ return API.call(action, Object.assign({ s: SESS && SESS.s }, data || {})).catch(function(e){ if(e.code === 'auth'){ SS.set(null); setTimeout(function(){ location.reload(); }, 1500); } throw e; }); }
   var $ = function(id){ return document.getElementById(id); };
   var KIND = { shop: '店頭', visit: '出張', photo: '写真査定', takuhai: '宅配' };
-  var ST = { new: '新着', contacted: '連絡済', scheduled: '日時確定', kit_sent: 'キット発送', arrived: '到着', appraised: '金額提示中', accepted: '成約・同意', declined: '不成立', done: '完了', cancelled: '取消' };
+  var ST = { new: '新着', contacted: '連絡済', scheduled: '日時確定', kit_sent: 'キット発送', pre_appraised: '仮査定提示', waiting: '発送待ち', shipped: 'お客様発送済', arrived: '到着', appraised: '金額提示中', accepted: '成約・同意', paid: '振込済', declined: '不成立', done: '完了', cancelled: '取消' };
+  var PLAN = { matome: 'A おまとめ', kodaka: 'B 30%UP' };
+  var PLAN_LONG = { matome: 'A おまとめ簡易買取（仮査定なし）', kodaka: 'B 提携先紹介 30%高価買取' };
+  var RATE = 1.3;
+  var STATUS_PLAN = ['new', 'pre_appraised', 'waiting', 'shipped', 'arrived', 'appraised', 'accepted', 'paid', 'declined', 'done', 'cancelled'];
+  // 提携先プランの手順（管理用）。[状態, 見出し]
+  function planSteps(r){
+    var s = [['waiting', 'お客様の発送待ち'], ['shipped', 'お客様が発送'], ['arrived', '到着（査定する）'], ['appraised', (r.plan === 'matome' ? 'おまとめ価格' : '30%上乗せ価格') + 'を提示・回答待ち'], ['accepted', '同意あり（振込する）'], ['paid', '振込済み'], ['done', '完了']];
+    if(r.plan === 'kodaka' && r.pre_est) s = [['new', '写真で仮査定する'], ['pre_appraised', '仮査定を提示・回答待ち']].concat(s);
+    return s;
+  }
+  function days(s){ return s ? Math.floor((Date.now() - new Date(s).getTime()) / 864e5) : 0; }
+  // 一覧に出す「次にやること」
+  function nextTodo(r){
+    if(!r.plan) return '';
+    if(r.status === 'waiting' && r.kit_boxes > 0 && !r.kit_tracking) return 'キット' + r.kit_boxes + '箱を発送する';
+    var w = { new: '仮査定を出す', pre_appraised: '仮査定の回答待ち', waiting: 'お客様の発送待ち（' + days(r.created_at) + '日）', shipped: '到着待ち（' + days(r.shipped_at) + '日）', arrived: '査定して価格を提示', appraised: 'お客様の回答待ち（' + days(r.estimate_at) + '日）', accepted: '振込する' + (r.bank ? '' : '（振込先未登録）'), paid: '完了にする' }[r.status];
+    return w || '';
+  }
   var STATUS_BY_KIND = {
     shop: ['new', 'contacted', 'scheduled', 'accepted', 'declined', 'done', 'cancelled'],
     visit: ['new', 'contacted', 'scheduled', 'appraised', 'accepted', 'declined', 'done', 'cancelled'],
     photo: ['new', 'contacted', 'appraised', 'accepted', 'declined', 'done', 'cancelled'],
-    takuhai: ['new', 'contacted', 'kit_sent', 'arrived', 'appraised', 'accepted', 'declined', 'done', 'cancelled']
+    takuhai: ['new', 'contacted', 'kit_sent', 'arrived', 'appraised', 'accepted', 'paid', 'declined', 'done', 'cancelled']
   };
   var CLOSED = ['done', 'cancelled', 'declined'];
   var ROWS = [], ROSTER = [], CUR = null, TAB = 'todo';
@@ -22,8 +40,8 @@
   function dt(s){ if(!s) return ''; var d = new Date(s); return (d.getMonth() + 1) + '/' + d.getDate() + '(' + '日月火水木金土'[d.getDay()] + ') ' + d.toTimeString().slice(0, 5); }
   function say(t, cls){ $('appMsg').innerHTML = t ? '<p class="msg ' + (cls || 'bad') + '">' + esc(t) + '</p>' : ''; if(t && cls === 'ok') setTimeout(function(){ $('appMsg').innerHTML = ''; }, 4000); }
   function actor(){ return $('actor').value || '担当者'; }
-  function tagFor(s){ return s === 'new' ? 'new' : s === 'appraised' ? 'go' : (s === 'accepted' || s === 'done') ? 'ok' : CLOSED.indexOf(s) >= 0 ? 'end' : ''; }
-  function needsAction(r){ return r.status === 'new' || r.unread_staff > 0 || r.id_status === 'submitted' || r.status === 'arrived' || (r.answer && r.status === 'accepted' && !r.final_amount && r.kind === 'photo'); }
+  function tagFor(s){ return s === 'new' ? 'new' : (s === 'appraised' || s === 'pre_appraised') ? 'go' : (s === 'accepted' || s === 'done' || s === 'paid') ? 'ok' : CLOSED.indexOf(s) >= 0 ? 'end' : ''; }
+  function needsAction(r){ return (r.plan && ((r.status === 'waiting' && r.kit_boxes > 0 && !r.kit_tracking) || r.status === 'arrived' || r.status === 'shipped' || (r.status === 'accepted') || r.status === 'paid' || (r.status === 'new' && r.pre_est))) || r.status === 'new' || r.unread_staff > 0 || r.id_status === 'submitted' || r.status === 'arrived' || (r.answer && r.status === 'accepted' && !r.final_amount && r.kind === 'photo'); }
 
   // ── ログイン ──
   $('loginForm').addEventListener('submit', async function(ev){
@@ -58,7 +76,9 @@
     return ROWS.filter(function(r){
       if(TAB === 'todo' && !needsAction(r)) return false;
       if(TAB === 'open' && CLOSED.indexOf(r.status) >= 0) return false;
-      if(k && r.kind !== k) return false;
+      if(k === 'planA' && r.plan !== 'matome') return false;
+      if(k === 'planB' && r.plan !== 'kodaka') return false;
+      if(k && k.indexOf('plan') !== 0 && r.kind !== k) return false;
       if(q && (r.name + r.phone + r.receipt_no.replace(/-/g, '') + (r.kana || '') + (r.email || '')).indexOf(q) < 0) return false;
       return true;
     });
@@ -74,6 +94,8 @@
         + '<span class="l2"><span class="tag">' + KIND[r.kind] + '</span>' + esc(r.receipt_no) + '・' + dt(r.created_at)
         + (r.mode === 'trial' ? '<span class="tag trial">試験</span>' : '')
         + (r.ref ? '<span class="tag">紹介 ' + esc(r.ref) + '</span>' : '')
+        + (r.plan ? '<span class="tag go">' + PLAN[r.plan] + (r.pre_est ? '・仮査定' : '') + '</span>' : '')
+        + (nextTodo(r) && CLOSED.indexOf(r.status) < 0 ? '<span class="tag">次：' + esc(nextTodo(r)) + '</span>' : '')
         + (r.unread_staff ? '<span class="tag new">連絡 ' + r.unread_staff + '</span>' : '')
         + (r.photo_count ? '<span class="tag">写真 ' + r.photo_count + '</span>' : '')
         + (r.id_status === 'submitted' ? '<span class="tag go">身分証確認待ち</span>' : '')
@@ -129,14 +151,15 @@
       + '<dt>品目</dt><dd>' + esc((r.items || []).join('、') || '（未選択）') + '</dd>'
       + (r.item_note ? '<dt>内容</dt><dd style="white-space:pre-wrap">' + esc(r.item_note) + '</dd>' : '')
       + (r.quantity ? '<dt>量</dt><dd>' + esc(r.quantity) + '</dd>' : '')
-      + (r.kind === 'takuhai' ? '<dt>キット</dt><dd>' + (r.kit_boxes ? r.kit_boxes + '箱' : '不要') + '</dd>' : '')
+      + (r.kind === 'takuhai' && !r.plan ? '<dt>キット</dt><dd>' + (r.kit_boxes ? r.kit_boxes + '箱' : '不要') + '</dd>' : '')
+      + (r.plan ? '<dt>プラン</dt><dd><b>' + PLAN_LONG[r.plan] + '</b>' + (r.plan === 'kodaka' ? (r.pre_est ? '（仮査定あり）' : '（仮査定なし）') : '') + '</dd>' : '')
       + (wish ? '<dt>希望日時</dt><dd>' + wish + '</dd>' : '')
       + '</dl></div>';
 
     // 担当・状態・メモ
     h += '<div class="box"><h3>担当と状態</h3><div class="inline">'
       + '<label class="f">担当者<br><select data-f="assignee"><option value="">（未定）</option>' + ROSTER.map(function(x){ return '<option' + (x.name === r.assignee ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>'
-      + '<label class="f">状態<br><select data-f="status">' + STATUS_BY_KIND[r.kind].map(function(s){ return '<option value="' + s + '"' + (s === r.status ? ' selected' : '') + '>' + ST[s] + '</option>'; }).join('') + '</select></label>'
+      + '<label class="f">状態<br><select data-f="status">' + (r.plan ? STATUS_PLAN : STATUS_BY_KIND[r.kind]).map(function(s){ return '<option value="' + s + '"' + (s === r.status ? ' selected' : '') + '>' + ST[s] + '</option>'; }).join('') + '</select></label>'
       + '<button class="btn blue small" data-act="save-state">変更を保存</button></div>'
       + '<div class="f" style="margin-top:10px"><label>店舗内メモ（お客様には見えません）</label><textarea data-f="staff_memo" style="min-height:70px">' + esc(r.staff_memo || '') + '</textarea></div>'
       + '<button class="btn ghost small" data-act="save-memo">メモを保存</button></div>';
@@ -156,7 +179,8 @@
         + '<button class="btn blue small" data-act="schedule">確定してお客様に知らせる</button></div>'
         + (r.email ? '' : '<p class="hint">メールアドレスがないため、お知らせは送られません。お電話でお伝えください。</p>') + '</div>';
     }
-    if(r.kind === 'takuhai'){
+    if(r.plan){ h += planPanel(r); }
+    if(r.kind === 'takuhai' && !r.plan){
       h += '<div class="box"><h3>宅配キットとご本人確認</h3><div class="inline"><label class="f">追跡番号<br><input type="text" data-f="kit_tracking" value="' + esc(r.kit_tracking || '') + '"></label>'
         + '<button class="btn blue small" data-act="kit">キット発送をお知らせ</button><button class="btn ghost small" data-act="arrived">お品物の到着を記録</button></div>'
         + '<p style="margin-top:10px">身分証：<b>' + ({ none: '未提出', submitted: '提出あり（確認待ち）', verified: '確認済み' }[r.id_status]) + '</b></p><div class="pics" data-pics="idcopy"></div>'
@@ -166,7 +190,7 @@
 
     // 金額の提示
     var isRange = r.kind === 'photo';
-    h += '<div class="box"><h3>' + (isRange ? '概算金額の提示' : '査定金額の提示') + '</h3><div class="inline">'
+    if(!r.plan) h += '<div class="box"><h3>' + (isRange ? '概算金額の提示' : '査定金額の提示') + '</h3><div class="inline">'
       + (isRange
         ? '<label class="f">下限（円）<br><input type="number" min="0" step="100" data-f="estimate_low" value="' + (r.estimate_low == null ? '' : r.estimate_low) + '"></label><label class="f">上限（円）<br><input type="number" min="0" step="100" data-f="estimate_high" value="' + (r.estimate_high == null ? '' : r.estimate_high) + '"></label>'
         : '<label class="f">金額（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label>')
@@ -186,6 +210,69 @@
 
     h += '<div class="box"><h3>履歴</h3><div class="log">' + evs.map(function(x){ return dt(x.at) + '　' + esc(x.actor || '') + '　' + esc(x.action); }).join('<br>') + '</div></div>';
     return h;
+  }
+
+  // 提携先プランの進行管理（手順ごとにやることとボタンを出す）
+  function planPanel(r){
+    var steps = planSteps(r), order = steps.map(function(x){ return x[0]; }), idx = order.indexOf(r.status);
+    var closed = r.status === 'declined' || r.status === 'cancelled';
+    var dates = { waiting: r.created_at, shipped: r.shipped_at, arrived: r.arrived_at, appraised: r.estimate_at, accepted: r.answer === 'accept' ? r.answer_at : null, paid: r.paid_at };
+    var h = '<div class="box plan-panel"><h3>進行管理：' + PLAN_LONG[r.plan] + '</h3>';
+    h += closed ? '<p><b>' + ST[r.status] + '</b>のため終了しています。</p>' : '<ol class="psteps">' + steps.map(function(x, i){
+      return '<li class="' + (i < idx ? 'done' : i === idx ? 'on' : '') + '">' + x[1] + (dates[x[0]] && i <= idx ? '<small>' + dt(dates[x[0]]) + '</small>' : '') + '</li>'; }).join('') + '</ol>';
+    // 本人確認・振込先（いつでも見える）
+    h += '<div class="grid2" style="margin-top:10px"><div><b>本人確認</b>：' + ({ none: '未提出', submitted: '提出あり（確認待ち）', verified: '確認済み' }[r.id_status])
+      + (r.id_status === 'submitted' ? ' <button class="btn blue small" data-act="id-ok">確認済みにする</button>' : '') + '<div class="pics" data-pics="idcopy"></div></div>'
+      + '<div><b>振込先</b><div class="f"><input type="text" data-f="bank" value="' + esc(r.bank || '') + '" placeholder="銀行 支店 普通 口座番号 名義"></div><button class="btn ghost small" data-act="save-bank">振込先を保存</button></div></div>';
+    if(closed) return h + '</div>';
+    var s = r.status;
+    // 1. 仮査定（Bで希望あり）
+    if(r.plan === 'kodaka' && r.pre_est && (s === 'new' || s === 'contacted' || s === 'pre_appraised')){
+      h += '<div class="step-act"><b>仮査定の提示</b>（30%上乗せ後の目安で入れてください）<div class="inline">'
+        + '<label class="f">下限（円）<br><input type="number" min="0" step="100" data-f="estimate_low" value="' + (r.estimate_low == null ? '' : r.estimate_low) + '"></label>'
+        + '<label class="f">上限（円）<br><input type="number" min="0" step="100" data-f="estimate_high" value="' + (r.estimate_high == null ? '' : r.estimate_high) + '"></label></div>'
+        + '<div class="f"><label>お客様へのひとこと</label><textarea data-f="estimate_note" style="min-height:60px">' + esc(r.estimate_note || '') + '</textarea></div>'
+        + '<button class="btn primary small" data-act="pre-estimate">仮査定をお客様に知らせる</button></div>';
+    }
+    // 2. 発送待ち
+    if(s === 'waiting' || s === 'contacted' || s === 'kit_sent' || (s === 'new' && !r.pre_est)){
+      if(r.kit_boxes > 0) h += '<div class="step-act"><b>宅配キット ' + r.kit_boxes + '箱の希望あり</b>：' + (r.kit_tracking ? '発送済み（追跡番号 ' + esc(r.kit_tracking) + '）' : '<span class="tag new">未発送</span>')
+        + '<div class="inline"><label class="f">キットの追跡番号<br><input type="text" data-f="kit_tracking" value="' + esc(r.kit_tracking || '') + '"></label><button class="btn blue small" data-act="p-kit">キット発送をお知らせ</button></div></div>';
+      h += '<div class="step-act"><b>お客様の発送待ち</b>（受付から ' + days(r.created_at) + ' 日）'
+        + '<p class="hint">着払いで届きます。送り方の案内を送り直すこともできます。届いたら「到着を記録」を押してください。</p>'
+        + '<div class="inline"><button class="btn ghost small" data-act="ship-guide">送り方の案内を送る</button><button class="btn blue small" data-act="p-arrived">到着を記録</button></div></div>';
+    }
+    if(s === 'shipped'){
+      h += '<div class="step-act"><b>お客様が発送しました</b>（' + dt(r.shipped_at) + (r.ship_tracking ? '・追跡番号 ' + esc(r.ship_tracking) : '') + '）'
+        + '<div class="inline"><button class="btn blue small" data-act="p-arrived">到着を記録</button></div></div>';
+    }
+    // 3. 本査定・価格提示
+    if(s === 'arrived' || s === 'appraised'){
+      if(r.plan === 'kodaka'){
+        h += '<div class="step-act"><b>本査定（30%上乗せ）</b><div class="inline">'
+          + '<label class="f">通常の査定額（円）<br><input type="number" min="0" step="1" data-f="base_amount" value="' + (r.base_amount == null ? '' : r.base_amount) + '"></label>'
+          + '<label class="f">買取価格＝×1.3（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label></div>'
+          + '<p class="hint">通常の査定額を入れると、買取価格が自動で計算されます（1円未満切り捨て）。</p>';
+      } else {
+        h += '<div class="step-act"><b>本査定（おまとめ価格）</b><div class="inline">'
+          + '<label class="f">おまとめ価格（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label></div>';
+      }
+      h += '<div class="f"><label>お客様へのひとこと（内訳など）</label><textarea data-f="estimate_note" style="min-height:70px">' + esc(r.estimate_note || (r.plan === 'matome' ? '価格がつかなかったお品物も、処分費などは一切かからず、おまとめ買取として当店で処分いたします。' : '')) + '</textarea></div>'
+        + '<button class="btn primary small" data-act="p-estimate">' + (s === 'appraised' ? '金額を出し直す' : '金額をお客様に知らせる') + '</button>'
+        + (s === 'appraised' ? '<p style="margin-top:8px">お客様の回答待ち（' + days(r.estimate_at) + ' 日）　<button class="btn ghost small" data-act="p-accept">電話で同意を受けた</button> <button class="btn ghost small" data-act="p-decline">電話で見送りを受けた</button></p>' : '')
+        + '</div>';
+    }
+    // 4. 振込
+    if(s === 'accepted'){
+      var today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+      h += '<div class="step-act"><b>振込する</b>：' + yen(r.final_amount) + (r.bank ? '' : '　<span class="tag new">振込先が未登録です</span>')
+        + (r.id_status !== 'verified' ? '　<span class="tag new">本人確認が未完了です</span>' : '')
+        + '<div class="inline"><label class="f">振込日<br><input type="date" data-f="paid_day" value="' + today + '"></label><button class="btn primary small" data-act="p-paid">振込完了を記録してお知らせ</button></div></div>';
+    }
+    if(s === 'paid'){
+      h += '<div class="step-act"><b>振込済み</b>（' + dt(r.paid_at) + '）<div class="inline"><button class="btn blue small" data-act="done">完了にする</button></div></div>';
+    }
+    return h + '</div>';
   }
 
   function aiView(n, at){
@@ -244,6 +331,54 @@
         await call('staffNotify', { id: r.id, kind: 'estimate', actor: who, body: (r.kind === 'photo' ? 'おおよその買取金額：' + yen(patch.estimate_low) + (patch.estimate_high !== patch.estimate_low ? ' 〜 ' + yen(patch.estimate_high) : '') : '査定金額：' + yen(patch.final_amount)) + (patch.estimate_note ? '\n\n' + patch.estimate_note : '') });
         say('金額をお客様に知らせました', 'ok');
       }
+      if(act === 'save-bank'){ await call('staffUpdate', { id: r.id, patch: { bank: g('bank').trim() || null } }); await log(r.id, '振込先を保存'); say('振込先を保存しました', 'ok'); }
+      if(act === 'pre-estimate'){
+        var lo2 = Number(g('estimate_low')), hi2 = Number(g('estimate_high') || g('estimate_low'));
+        if(!lo2 || lo2 < 0) throw new Error('下限の金額を入れてください'); if(hi2 < lo2) throw new Error('上限は下限以上にしてください');
+        if(!confirm('仮査定をお客様にお知らせします。よろしいですか？')) throw null;
+        await call('staffUpdate', { id: r.id, patch: { estimate_low: lo2, estimate_high: hi2, estimate_note: g('estimate_note').trim() || null, estimate_at: new Date().toISOString(), status: 'pre_appraised', assignee: r.assignee || who } });
+        await call('staffNotify', { id: r.id, kind: 'pre_estimate', actor: who, body: '仮査定（30%上乗せ後の目安）：' + yen(lo2) + (hi2 !== lo2 ? ' 〜 ' + yen(hi2) : '') + (g('estimate_note').trim() ? '\n\n' + g('estimate_note').trim() : '') + '\n\n写真からの目安です。お品物の到着後に本査定を行い、正式な金額をお知らせします。' });
+        say('仮査定をお客様に知らせました', 'ok');
+      }
+      if(act === 'p-kit'){
+        var tr2 = g('kit_tracking').trim();
+        await call('staffUpdate', { id: r.id, patch: { kit_tracking: tr2 || null, status: 'waiting', assignee: r.assignee || who } });
+        await call('staffNotify', { id: r.id, kind: 'ship', actor: who, body: '宅配キット（' + r.kit_boxes + '箱）を発送しました。' + (tr2 ? '\n追跡番号：' + tr2 : '') + '\nキットが届いたら、お品物を詰めてお送りください。' });
+        say('キット発送をお客様に知らせました', 'ok');
+      }
+      if(act === 'ship-guide'){ await call('staffUpdate', { id: r.id, patch: { status: 'waiting', assignee: r.assignee || who } }); await call('staffNotify', { id: r.id, kind: 'ship', actor: who, body: 'お品物の送り方をご案内します。' }); say('送り方の案内を送りました', 'ok'); }
+      if(act === 'p-arrived'){
+        await call('staffUpdate', { id: r.id, patch: { status: 'arrived', arrived_at: new Date().toISOString(), assignee: r.assignee || who } });
+        await call('staffNotify', { id: r.id, kind: 'arrived', actor: who, body: 'お品物が当店に到着しました。これから査定いたします。結果はメールでお知らせします。' + (r.id_status === 'none' ? '\n\nまだの方は「お申込み状況」のページから、身分証の画像をお送りください。' : '') });
+        say('到着を記録しました', 'ok');
+      }
+      if(act === 'p-estimate'){
+        if(r.plan === 'matome' && g('final_amount') === '') throw new Error('おまとめ価格を入れてください');
+        var fa2 = Number(g('final_amount')), base = r.plan === 'kodaka' ? Number(g('base_amount')) : null;
+        if(r.plan === 'kodaka' && (!base || base < 0)) throw new Error('通常の査定額を入れてください');
+        if(r.plan === 'kodaka' && !fa2) fa2 = Math.floor(base * RATE);
+        if(fa2 < 0 || (!fa2 && r.plan === 'kodaka')) throw new Error('買取価格を入れてください');
+        if(!confirm((r.plan === 'matome' ? 'おまとめ価格 ' : '買取価格 ') + yen(fa2) + ' をお客様にお知らせします。よろしいですか？')) throw null;
+        var note2 = g('estimate_note').trim();
+        await call('staffUpdate', { id: r.id, patch: { base_amount: base, final_amount: fa2, estimate_note: note2 || null, status: 'appraised', estimate_at: new Date().toISOString(), answer: null, answer_at: null, assignee: r.assignee || who } });
+        await call('staffNotify', { id: r.id, kind: 'estimate', actor: who, body: (r.plan === 'matome' ? 'おまとめ価格：' + yen(fa2) : '買取価格：' + yen(fa2) + '\n（通常の査定額 ' + yen(base) + ' ＋ 提携先ご紹介特典30% ' + yen(fa2 - base) + '）') + (note2 ? '\n\n' + note2 : '') + '\n\nご同意いただけましたら、ご登録の口座へお振込みいたします。' });
+        say('金額をお客様に知らせました', 'ok');
+      }
+      if(act === 'p-accept' || act === 'p-decline'){
+        var yes = act === 'p-accept';
+        if(!confirm(yes ? 'お電話で同意を受けたことを記録します' : 'お電話で見送りを受けたことを記録します')) throw null;
+        await call('staffUpdate', { id: r.id, patch: { answer: yes ? 'accept' : 'decline', answer_at: new Date().toISOString(), status: yes ? 'accepted' : 'declined' } });
+        await log(r.id, yes ? '電話で同意を受けた' : '電話で見送りを受けた'); say('記録しました', 'ok');
+      }
+      if(act === 'p-paid'){
+        var pd = g('paid_day'); if(!pd) throw new Error('振込日を入れてください');
+        if(!r.bank && !confirm('振込先が未登録です。それでも振込完了にしますか？')) throw null;
+        if(!confirm(yen(r.final_amount) + ' の振込完了を記録し、お客様にお知らせします。よろしいですか？')) throw null;
+        var iso2 = new Date(pd + 'T12:00:00+09:00').toISOString();
+        await call('staffUpdate', { id: r.id, patch: { status: 'paid', paid_at: iso2 } });
+        await call('staffNotify', { id: r.id, kind: 'paid', actor: who, body: fmtJp(iso2).replace(/\s.*$/, '') + 'に、' + yen(r.final_amount) + 'をご登録の口座へお振込みいたしました。\nご確認をお願いいたします。このたびはご利用いただき、ありがとうございました。' });
+        say('振込完了を記録しました', 'ok');
+      }
       if(act === 'reply'){
         var body = g('reply').trim(); if(!body) throw new Error('本文を入れてください');
         await call('staffNotify', { id: r.id, kind: 'message', body: body, actor: who });
@@ -261,13 +396,20 @@
   async function log(id, action, detail){ try{ await call('staffLog', { id: id, actor: actor(), action: action, detail: detail || null }); }catch(e){} }
   function fmtJp(iso){ var d = new Date(iso); return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Tokyo' }) + ' ' + d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }); }
 
+  // B：通常の査定額を入れたら、買取価格（×1.3）を自動で入れる
+  $('detail').addEventListener('input', function(ev){
+    if(ev.target.dataset.f !== 'base_amount') return;
+    var fa = $('detail').querySelector('[data-f=final_amount]'); var v = Number(ev.target.value);
+    if(fa) fa.value = v > 0 ? Math.floor(v * RATE) : '';
+  });
+
   // 写真の拡大
   $('detail').addEventListener('click', function(ev){ var i = ev.target.closest('.pics img'); if(!i) return; var lb = $('lb'); lb.querySelector('img').src = i.src; lb.hidden = false; });
   $('lb').addEventListener('click', function(){ this.hidden = true; });
 
   // 表の書き出し（いま表示している一覧）
   $('csv').onclick = function(){
-    var cols = [['受付番号', 'receipt_no'], ['方法', function(r){ return KIND[r.kind]; }], ['状態', function(r){ return ST[r.status]; }], ['受付日時', function(r){ return dt(r.created_at); }], ['お名前', 'name'], ['ふりがな', 'kana'], ['電話', 'phone'], ['メール', 'email'], ['住所', function(r){ return (r.postal || '') + ' ' + (r.address || ''); }], ['品目', function(r){ return (r.items || []).join('、'); }], ['内容', 'item_note'], ['担当', 'assignee'], ['日時', function(r){ return dt(r.scheduled_at); }], ['概算下限', 'estimate_low'], ['概算上限', 'estimate_high'], ['金額', 'final_amount'], ['きっかけ', 'how_found'], ['紹介元', 'ref']];
+    var cols = [['受付番号', 'receipt_no'], ['方法', function(r){ return KIND[r.kind]; }], ['状態', function(r){ return ST[r.status]; }], ['受付日時', function(r){ return dt(r.created_at); }], ['お名前', 'name'], ['ふりがな', 'kana'], ['電話', 'phone'], ['メール', 'email'], ['住所', function(r){ return (r.postal || '') + ' ' + (r.address || ''); }], ['品目', function(r){ return (r.items || []).join('、'); }], ['内容', 'item_note'], ['担当', 'assignee'], ['日時', function(r){ return dt(r.scheduled_at); }], ['概算下限', 'estimate_low'], ['概算上限', 'estimate_high'], ['金額', 'final_amount'], ['きっかけ', 'how_found'], ['紹介元', 'ref'], ['プラン', function(r){ return r.plan ? PLAN_LONG[r.plan] : ''; }], ['仮査定', function(r){ return r.pre_est ? 'あり' : ''; }], ['通常査定額', 'base_amount'], ['発送日', function(r){ return dt(r.shipped_at); }], ['到着日', function(r){ return dt(r.arrived_at); }], ['振込日', function(r){ return dt(r.paid_at); }]];
     var lines = [cols.map(function(c){ return c[0]; })].concat(filtered().map(function(r){ return cols.map(function(c){ return typeof c[1] === 'function' ? c[1](r) : r[c[1]]; }); }));
     var csv = '﻿' + lines.map(function(l){ return l.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = '申込一覧_' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
