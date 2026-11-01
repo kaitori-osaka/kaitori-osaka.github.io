@@ -210,7 +210,7 @@
     var L = Array.isArray(r.lines) ? r.lines : [], pm = r.price_mode || (r.plan === 'matome' ? 'matome' : 'item');
     LIMGS = []; LNAMES = []; LFILES = [];
     var up = r.plan === 'kodaka' || (!!r.ref && (r.kind === 'shop' || r.kind === 'visit'));
-    return '<div class="box lines-box pm-' + pm + (up ? ' has-up' : '') + '" id="linesBox" data-up="' + (up ? 1 : 0) + '"><h3>お品物の明細</h3>'
+    return '<div class="box lines-box pm-' + pm + (up ? ' has-up' : '') + '" id="linesBox" data-up="' + (up ? 1 : 0) + '"><h3>' + (r.kind === 'takuhai' ? '到着後の査定：画像を取り込んで、買取見込みのお品物の一覧を作る' : '査定：画像を取り込んで、買取見込みのお品物の一覧を作る') + '</h3><p class="hint">一覧と合計は、金額のお知らせ（メール・お申込み状況のページ）と買取契約書にそのまま載ります。</p>'
       + '<div class="aibox"><label class="btn ghost small">写真から選ぶ（複数可）<input type="file" accept="image/*" multiple data-lines-files hidden></label>'
       + '<label class="btn ghost small">カメラで撮る<input type="file" accept="image/*" capture="environment" data-lines-files hidden></label>'
       + '<span class="hint" data-lines-count>画像：0枚（10枚まで。何回かに分けて足せます）</span><div class="lthumbs" data-lines-thumbs></div>'
@@ -228,6 +228,32 @@
       + (up ? '<p class="hint">提携先ご紹介の30%上乗せ：「30%対象」は最初はすべてチェックが入っています。<b>貴金属・商品券など上乗せの対象外のお品物は、チェックを外してください。</b>（AIが金・貴金属や金券と判断した物は、最初から外してあります）</p>' : '')
       + '<p class="lines-total" data-lines-total></p>'
       + '<div class="actions"><button class="btn blue small" data-act="lines-save">明細を保存</button><button class="btn ghost small" data-act="lines-apply">合計を買取価格の欄に入れる</button></div></div>';
+  }
+  // 明細を保存する（まだ保存していない写真はドライブに保存し、各行に写真を結びつける）。金額の通知の前にも自動で呼ぶ
+  async function saveLines(r, who, b){
+    var d = $('detail');
+    if(!$('linesBox')) return null;
+    var need = LIMGS.map(function(u, i){ return LFILES[i] ? '' : u; });
+    if(need.some(Boolean)){
+      if(b) b.textContent = '写真を保存しています…';
+      var sv = await call('staffShots', { id: r.id, images: need, actor: who });
+      sv.forEach(function(nm, i){ if(nm) LFILES[i] = nm; });
+    }
+    [].forEach.call(d.querySelectorAll('#linesBox tbody tr'), function(tr){
+      var k2 = /^画像(\d+)$/.exec(tr.querySelector('[data-l=img]').value);
+      if(k2 && LFILES[k2[1] - 1]) tr.querySelector('[data-l=file]').value = LFILES[k2[1] - 1];
+    });
+    var R1 = readLines();
+    await call('staffUpdate', { id: r.id, patch: { lines: R1.lines, price_mode: R1.pm, matome_amount: R1.matome } });
+    await log(r.id, '明細を保存', { items: R1.lines.length, total: R1.total, mode: R1.pm });
+    return R1;
+  }
+  // 金額を知らせる前：明細があれば保存し、金額欄が空なら明細の合計を入れる
+  async function linesBeforeEstimate(r, who, b){
+    var R = readLines(); if(!R || !R.lines.length) return;
+    var fa = $('detail').querySelector('[data-f=final_amount]');
+    if(fa && fa.value === '' && R.total > 0){ fa.value = R.total; fa.dispatchEvent(new Event('input', { bubbles: true })); }
+    await saveLines(r, who, b);
   }
   function readLines(){
     var box = $('linesBox'); if(!box) return null;
@@ -331,7 +357,11 @@
         + '<p class="hint">転送不要の簡易書留の到達と、同じ名義の口座への振込で本人確認を完了します。</p></div>';
     }
 
-    h += linesBox(r);
+    if(!r.plan){
+      if(r.kind !== 'takuhai' || ['arrived', 'appraised', 'accepted', 'paid', 'done'].indexOf(r.status) >= 0) h += linesBox(r);
+      else h += '<div class="box"><h3>到着後の査定</h3><p class="hint">お品物が届いて「到着を記録」すると、ここで画像を取り込んで査定できます。</p></div>';
+      if(r.kind === 'takuhai' && r.answer === 'accept') h += '<div class="box">' + contractInfo(r) + '</div>';
+    }
 
     // 金額の提示
     var isRange = r.kind === 'photo';
@@ -361,6 +391,15 @@
   }
 
   // 提携先プランの進行管理（手順ごとにやることとボタンを出す）
+  // 電子契約の状態（宅配買取：同意の後に、お客様が契約書を確認・記入・押印・承認）
+  function contractInfo(r){
+    if(r.contract_at) return '<b>電子契約：締結済み</b>（' + dt(r.contract_at) + (r.contract && r.contract.code ? '・確認番号 ' + esc(r.contract.code) : '') + '）'
+      + (r.contract ? '<p class="hint">売主：' + esc(r.contract.signer || '') + '　生年月日 ' + esc(r.contract.birth || '') + '　職業 ' + esc(r.contract.job || '') + '<br>住所：' + esc(r.contract.address || '') + '</p>' : '')
+      + '<div class="inline"><button class="btn ghost small" data-act="c-pdf">契約書（PDF）を見る</button></div>';
+    return '<b>電子契約：お客様の押印・承認待ち</b>' + (r.bank ? '' : '<span class="tag new">振込先が未登録（先に登録が必要）</span>')
+      + '<p class="hint">お客様が「お申込み状況」のページで契約書を確認し、記入・押印・承認すると成立します。成立するとメールでお知らせが届き、契約書（PDF）がドライブの「契約書」フォルダに保存されます。</p>'
+      + '<div class="inline"><button class="btn ghost small" data-act="c-remind">契約書の案内をメールで送る</button></div>';
+  }
   function planPanel(r){
     var steps = planSteps(r), order = steps.map(function(x){ return x[0]; }), idx = order.indexOf(r.status);
     var closed = r.status === 'declined' || r.status === 'cancelled';
@@ -396,6 +435,7 @@
     }
     // 3. 本査定・価格提示
     if(s === 'arrived' || s === 'appraised'){
+      h += linesBox(r);
       if(r.plan === 'kodaka'){
         h += '<div class="step-act"><b>本査定（買取価格は担当者が記入）</b><div class="inline">'
           + '<label class="f">通常の査定額・基準値（円）<br><input type="number" min="0" step="1" data-f="base_amount" value="' + (r.base_amount == null ? '' : r.base_amount) + '"></label>'
@@ -411,10 +451,12 @@
         + '</div>';
     }
     // 4. 振込
+    if(s === 'accepted') h += '<div class="step-act">' + contractInfo(r) + '</div>';
     if(s === 'accepted'){
       var today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
       h += '<div class="step-act"><b>振込する</b>：' + yen(r.final_amount) + (r.bank ? '' : '　<span class="tag new">振込先が未登録です</span>')
         + (r.id_status !== 'verified' ? '　<span class="tag new">本人確認が未完了です</span>' : '')
+        + (r.contract_at ? '' : '　<span class="tag new">電子契約が未締結です</span>')
         + '<div class="inline"><label class="f">振込日<br><input type="date" data-f="paid_day" value="' + today + '"></label><button class="btn primary small" data-act="p-paid">振込完了を記録してお知らせ</button></div></div>';
     }
     if(s === 'paid'){
@@ -506,20 +548,14 @@
     }
     try{
       if(act === 'lines-save'){
-        // まだ保存していない写真をドライブに保存し、明細の各行に写真のファイル名を結びつける
-        var need = LIMGS.map(function(u, i){ return LFILES[i] ? '' : u; });
-        if(need.some(Boolean)){
-          b.textContent = '写真を保存しています…';
-          var sv = await call('staffShots', { id: r.id, images: need, actor: who });
-          sv.forEach(function(nm, i){ if(nm) LFILES[i] = nm; });
-        }
-        [].forEach.call(d.querySelectorAll('#linesBox tbody tr'), function(tr){
-          var k2 = /^画像(\d+)$/.exec(tr.querySelector('[data-l=img]').value);
-          if(k2 && LFILES[k2[1] - 1]) tr.querySelector('[data-l=file]').value = LFILES[k2[1] - 1];
-        });
-        var R1 = readLines();
-        await call('staffUpdate', { id: r.id, patch: { lines: R1.lines, price_mode: R1.pm, matome_amount: R1.matome } });
-        await log(r.id, '明細を保存', { items: R1.lines.length, total: R1.total, mode: R1.pm }); say('明細を保存しました（合計 ' + yen(R1.total) + '）', 'ok');
+        var R1 = await saveLines(r, who, b);
+        say('明細を保存しました（合計 ' + yen(R1.total) + '）', 'ok');
+      }
+      if(act === 'c-remind'){ await call('staffContractRemind', { id: r.id, actor: who }); say('契約書のご案内をメールで送りました', 'ok'); }
+      if(act === 'c-pdf'){
+        var pf = await call('staffContractPdf', { id: r.id });
+        var bin = atob(pf.data.split(',')[1]), arr = new Uint8Array(bin.length); for(var bi = 0; bi < bin.length; bi++) arr[bi] = bin.charCodeAt(bi);
+        window.open(URL.createObjectURL(new Blob([arr], { type: 'application/pdf' })), '_blank');
       }
       if(act === 'save-state'){
         await call('staffUpdate', { id: r.id, patch: { assignee: g('assignee') || null, status: g('status') } });
@@ -544,6 +580,7 @@
       if(act === 'arrived'){ await call('staffUpdate', { id: r.id, patch: { status: 'arrived' } }); await call('staffNotify', { id: r.id, kind: 'message', actor: who, body: 'お品物が届きました。これから査定いたします。結果はメールでお知らせします。' }); say('到着を記録しました', 'ok'); }
       if(act === 'id-ok'){ await call('staffUpdate', { id: r.id, patch: { id_status: 'verified' } }); await log(r.id, '身分証を確認済みにした'); say('確認済みにしました', 'ok'); }
       if(act === 'estimate'){
+        await linesBeforeEstimate(r, who, b);
         var patch = { estimate_note: g('estimate_note').trim() || null, status: 'appraised', estimate_at: new Date().toISOString(), answer: null, answer_at: null, assignee: r.assignee || who };
         if(r.kind === 'photo'){
           var lo = Number(g('estimate_low')), hi = Number(g('estimate_high') || g('estimate_low'));
@@ -579,6 +616,7 @@
         say('到着を記録しました', 'ok');
       }
       if(act === 'p-estimate'){
+        await linesBeforeEstimate(r, who, b);
         if(r.plan === 'matome' && g('final_amount') === '') throw new Error('おまとめ価格を入れてください');
         var fa2 = Number(g('final_amount')), base = r.plan === 'kodaka' ? Number(g('base_amount')) : null;
         if(r.plan === 'kodaka' && (!base || base < 0)) throw new Error('通常の査定額を入れてください');
@@ -599,6 +637,7 @@
       if(act === 'p-paid'){
         var pd = g('paid_day'); if(!pd) throw new Error('振込日を入れてください');
         if(!r.bank && !confirm('振込先が未登録です。それでも振込完了にしますか？')) throw null;
+        if(r.kind === 'takuhai' && !r.contract_at && !confirm('電子契約がまだ成立していません。それでも振込完了にしますか？')) throw null;
         if(!confirm(yen(r.final_amount) + ' の振込完了を記録し、お客様にお知らせします。よろしいですか？')) throw null;
         var iso2 = new Date(pd + 'T12:00:00+09:00').toISOString();
         await call('staffUpdate', { id: r.id, patch: { status: 'paid', paid_at: iso2 } });

@@ -32,6 +32,39 @@
       + (mm && c.matomeAmount != null ? '<tr class="sum"><td colspan="3">おまとめ価格</td><td>' + yen(c.matomeAmount) + '</td></tr>' : '')
       + '</tbody></table>';
   }
+  // ── 電子契約（宅配買取：金額に同意 → 契約書の確認・記入・押印・承認）──
+  var JOBS = ['会社員', '公務員', '会社役員', '自営業', 'パート・アルバイト', '主婦・主夫', '学生', '年金生活', '無職', 'その他'];
+  function contractBox(c){
+    if(!c.contractNeed || c.answer !== 'accept') return '';
+    if(c.contractAt) return '<div class="note ok" style="margin-top:12px"><b>買取契約：成立しました</b>（' + dt(c.contractAt, true) + '）<p><small>契約書はメールでもお送りしています。</small></p><div class="actions"><button class="btn ghost small" data-cpdf>契約書をダウンロード（PDF）</button></div></div>';
+    if(c.status !== 'accepted') return '';
+    var id = 'c' + c.id.slice(0, 6);
+    return '<div class="note contract" style="margin-top:12px" data-contract><b>買取契約書（電子契約）</b>'
+      + '<ol class="csteps"><li class="on">① 内容を確認</li><li>② ご記入</li><li>③ 押印</li><li>④ 承認</li></ol>'
+      + (c.bankSet ? '' : '<p class="msg bad">先にお振込先の口座をご登録ください（' + (c.plan ? 'このページの下にあります' : 'すぐ下にあります') + '）。</p>'
+        + (c.plan ? '' : '<div class="note" style="margin:8px 0"><div data-bk-form>' + KD_BANK.form('cb' + c.id.slice(0, 6)) + '</div><div class="actions"><button class="btn blue small" data-bank>振込先を登録する</button></div></div>'))
+      + '<div class="cdoc" data-cdoc><p class="hint">契約書を読み込んでいます…</p></div>'
+      + '<p style="margin:10px 0 4px"><b>② ご記入</b><small>（古物営業法により、お名前・ご住所・ご職業・年齢の記録が必要です）</small></p>'
+      + '<div class="f"><label for="' + id + 'n">お名前（お申込みのときと同じ）</label><input type="text" id="' + id + 'n" data-c="signer" maxlength="40" value="' + esc(c.name || '') + '"></div>'
+      + '<div class="f"><label for="' + id + 'b">生年月日</label><input type="date" id="' + id + 'b" data-c="birth" min="1900-01-01" max="' + new Date(Date.now() - 18 * 365.25 * 864e5).toISOString().slice(0, 10) + '"></div>'
+      + '<div class="f"><label for="' + id + 'j">ご職業</label><select id="' + id + 'j" data-c="job"><option value="">選んでください</option>' + JOBS.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select></div>'
+      + '<div class="f"><label for="' + id + 'a">ご住所</label><input type="text" id="' + id + 'a" data-c="address" maxlength="200" value="' + esc(c.address || '') + '"></div>'
+      + '<label class="check" style="margin-top:8px"><input type="checkbox" data-c="agree"> 上の契約書の内容を確認し、同意します</label>'
+      + '<div class="actions"><button class="btn blue" data-cseal>③ 押印する</button><button class="btn primary" data-csign disabled>④ 承認して契約する</button></div>'
+      + '<p class="hint">「押印する」を押すと、契約書のお名前の横に印が入ります。内容を確かめてから「承認して契約する」を押してください。</p></div>';
+  }
+  function cfields(art){
+    var g = function(k){ var e = art.querySelector('[data-c="' + k + '"]'); return e ? (e.type === 'checkbox' ? e.checked : String(e.value || '').trim()) : ''; };
+    return { signer: g('signer'), birth: g('birth'), job: g('job'), address: g('address'), agree: g('agree') };
+  }
+  async function loadContracts(){
+    var boxes = document.querySelectorAll('[data-contract]');
+    for(var i = 0; i < boxes.length; i++){
+      var art = boxes[i].closest('[data-case]');
+      try{ var r = await API.call('portalContract', { s: SESS.s, app: art.dataset.case }); boxes[i].querySelector('[data-cdoc]').innerHTML = r.html; }
+      catch(e){ boxes[i].querySelector('[data-cdoc]').innerHTML = '<p class="msg bad">' + esc(e.message) + '</p>'; }
+    }
+  }
   function yen(n){ return Number(n).toLocaleString('ja-JP') + '円'; }
   function dt(s, withTime){ if(!s) return ''; var d = new Date(s); return d.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' }) + (withTime ? ' ' + d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''); }
   function say(el, t, cls){ $(el).innerHTML = t ? '<p class="msg ' + (cls || 'bad') + '">' + t + '</p>' : ''; }
@@ -82,6 +115,7 @@
     ALL = await API.call('portalCases', { s: SESS.s });
     if(!ALL.length){ $('cases').innerHTML = '<p class="note blue">このメールアドレスでのお申込みは見つかりませんでした。お申込みのときと同じメールアドレスかご確認ください。<br><a href="apply.html">新しく申し込む</a></p>'; return; }
     $('cases').innerHTML = ALL.map(card).join('');
+    loadContracts();
     $('reloadAt').textContent = new Date().toTimeString().slice(0, 5) + ' 時点';
   }
 
@@ -100,11 +134,11 @@
       else if(s === 'waiting' || s === 'contacted' || s === 'kit_sent') n = (c.kitBoxes > 0 && !c.kitTracking) ? '宅配キットの到着をお待ちください。届いたら、お品物を詰めて着払いで送ってください。' : 'お品物を箱に詰めて着払いで送り、下の「発送しました」ボタンを押してください。';
       else if(s === 'shipped') n = 'お品物の到着をお待ちしています。届いたらお知らせします。';
       else if(s === 'arrived') n = '査定しています。結果をメールでお知らせします。';
-      else if(s === 'accepted') n = c.bankSet ? 'ご登録の口座へのお振込みをお待ちください。' : '下の「お振込先の口座」を登録してください。';
+      else if(s === 'accepted') n = !c.bankSet ? '下の「お振込先の口座」を登録してください。そのあと「買取契約書」の押印・承認をお願いします。' : c.contractNeed && !c.contractAt ? '下の「買取契約書」をご確認のうえ、記入・押印・承認してください。' : 'ご登録の口座へのお振込みをお待ちください。';
     } else {
       if(s === 'kit_sent') n = '宅配キットが届いたら、お品物を詰めて送ってください。';
       else if(s === 'arrived') n = '査定しています。結果をメールでお知らせします。';
-      else if(s === 'accepted') n = 'お振込みのご案内をお待ちください。';
+      else if(s === 'accepted') n = c.contractNeed && !c.contractAt ? '下の「買取契約書」をご確認のうえ、記入・押印・承認してください。' : 'お振込みのご案内をお待ちください。';
       else n = '宅配キットの発送をお待ちください。';
     }
     if(idNeed && !end) sub = 'あわせて、下の「ご本人確認の書類」から身分証の画像を送ってください（法律で必要です）。';
@@ -132,9 +166,10 @@
         + (c.kind === 'photo' ? '<p style="margin-top:6px"><small>写真からの目安です。実物を拝見して正式な金額をお伝えします。</small></p>' : '');
       if(c.status === 'appraised')
         h += '<div class="actions"><button class="btn primary" data-answer="accept">' + (c.kind === 'photo' ? 'この金額なら売りたい' : 'この金額で売る') + '</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
-      else if(c.answer) h += '<p style="margin-top:8px"><b>' + (c.answer === 'accept' ? 'ご同意いただきました。担当者からご連絡します。' : '見送りを承りました。') + '</b></p>';
+      else if(c.answer) h += '<p style="margin-top:8px"><b>' + (c.answer === 'accept' ? (c.contractNeed && !c.contractAt ? 'ご同意いただきました。下の「買取契約書」の押印・承認をお願いします。' : 'ご同意いただきました。担当者からご連絡します。') : '見送りを承りました。') + '</b></p>';
       h += '</div>';
     }
+    h += contractBox(c);
 
     // 宅配：本人確認
     if(c.kind === 'takuhai' && c.idStatus === 'none' && ['cancelled', 'declined', 'done'].indexOf(c.status) < 0)
@@ -188,9 +223,10 @@
         + linesHtml(c) + (c.estimateNote ? '<p style="white-space:pre-wrap;margin-top:6px">' + esc(c.estimateNote) + '</p>' : '')
         + (c.plan === 'matome' ? '<p style="margin-top:6px"><small>価格がつかなかったお品物も、処分費などは一切かかりません（おまとめ買取として当店で処分いたします）。</small></p>' : '');
       if(c.status === 'appraised') h += '<div class="actions"><button class="btn primary" data-answer="accept">この金額で売る</button><button class="btn ghost" data-answer="decline">今回は見送る</button></div>';
-      else if(c.answer) h += '<p style="margin-top:8px"><b>' + (c.answer === 'accept' ? 'ご同意いただきました。ご登録の口座へお振込みいたします。' : '見送りを承りました。担当者からご連絡します。') + '</b></p>';
+      else if(c.answer) h += '<p style="margin-top:8px"><b>' + (c.answer === 'accept' ? (c.contractNeed && !c.contractAt ? 'ご同意いただきました。下の「買取契約書」の押印・承認をお願いします。' : 'ご同意いただきました。ご登録の口座へお振込みいたします。') : '見送りを承りました。担当者からご連絡します。') + '</b></p>';
       h += '</div>';
     }
+    h += contractBox(c);
     if(c.status === 'paid' || c.status === 'done') h += '<p style="margin-top:10px"><b>' + (c.paidAt ? dt(c.paidAt) + 'に' : '') + 'お振込みいたしました。</b>ご利用ありがとうございました。</p>';
     // 振込先
     if(!closed && ['paid', 'done'].indexOf(c.status) < 0){
@@ -215,6 +251,35 @@
     var t = ev.target.closest('button'); if(!t) return;
     var art = t.closest('[data-case]'); if(!art) return;
     var id = art.dataset.case;
+    if(t.hasAttribute('data-cseal') || t.hasAttribute('data-csign')){
+      var F = cfields(art), box = art.querySelector('[data-contract]');
+      var miss = !F.signer ? 'お名前' : !F.birth ? '生年月日' : !F.job ? 'ご職業' : F.address.length < 5 ? 'ご住所' : '';
+      if(miss){ say('stMsg', miss + 'をご記入ください'); box.scrollIntoView({ block: 'center' }); return; }
+      if(t.hasAttribute('data-cseal')){
+        t.disabled = true;
+        try{
+          var r = await API.call('portalContract', Object.assign({ s: SESS.s, app: id, sealed: true }, F));
+          box.querySelector('[data-cdoc]').innerHTML = r.html;
+          box.querySelectorAll('.csteps li').forEach(function(li, i){ li.className = i < 3 ? 'done' : 'on'; });
+          box.querySelector('[data-csign]').disabled = false; t.textContent = '押印しました（やり直す）';
+          box.querySelector('[data-cdoc]').scrollIntoView({ block: 'start' }); window.scrollBy(0, -90);
+          say('stMsg', '契約書に押印しました。内容を確かめて「承認して契約する」を押してください。', 'ok');
+        }catch(e){ say('stMsg', e.message); }
+        t.disabled = false; return;
+      }
+      if(!F.agree){ say('stMsg', '「契約書の内容を確認し、同意します」にチェックを入れてください'); return; }
+      if(!confirm('この内容で買取契約を結びます。よろしいですか？')) return;
+      t.disabled = true;
+      try{ var rs = await API.call('portalSign', Object.assign({ s: SESS.s, app: id, ua: navigator.userAgent }, F, { agree: true })); await load(); say('stMsg', '契約が成立しました（確認番号 ' + rs.code + '）。契約書はメールでもお送りしました。', 'ok'); }
+      catch(e){ say('stMsg', e.message); t.disabled = false; }
+      return;
+    }
+    if(t.hasAttribute('data-cpdf')){
+      t.disabled = true;
+      try{ var p = await API.call('portalContractPdf', { s: SESS.s, app: id }); var a = document.createElement('a'); a.href = p.data; a.download = p.name; document.body.appendChild(a); a.click(); a.remove(); }
+      catch(e){ say('stMsg', e.message); }
+      t.disabled = false; return;
+    }
     if(t.dataset.answer){
       var isPre = (ALL.filter(function(x){ return x.id === id; })[0] || {}).status === 'pre_appraised';
       var ok = t.dataset.answer === 'accept' ? confirm(isPre ? 'この内容で、お品物を送る手続きに進みます。よろしいですか？' : 'この金額で進めます。よろしいですか？') : confirm('今回は見送ります。よろしいですか？');
