@@ -325,3 +325,5 @@ p{margin:0}
 .up30 b{color:var(--red,#e0262b);display:block}
 .up30 small{color:var(--mute)}
 .refx .up30{margin:0 0 10px}
+.btn.line{background:#06C755;color:#fff;border-color:#06C755;margin-top:10px}
+.btn.line:hover{background:#05b04b}
