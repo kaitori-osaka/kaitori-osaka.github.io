@@ -42,8 +42,43 @@
     f.elements.kitBoxes.value = '0';   // 提携先プランは「手持ちの箱で送る」を最初に選んでおく
     var pq = Q.get('plan'); if(pq){ var rp = f.querySelector('input[name=plan][value="' + pq + '"]'); if(rp) rp.checked = true; }
   }
-  f.addEventListener('change', function(ev){ if(ev.target.name === 'kind') sync(); syncPlan(); });
+  f.addEventListener('change', function(ev){ if(ev.target.name === 'kind') sync(); syncPlan(); guide(); });
+  f.addEventListener('input', function(){ guide(); });
   sync(); syncPlan();
+
+  // ── 今どこ・次に何をするか ──
+  // 上から順に、まだ終わっていない最初の項目を「次にすること」として出す
+  function todo(){
+    var k = kind(), em = val('email');
+    if(PLANMODE ? !plan() : !k) return [1, PLANMODE ? 'A（おまとめ）か B（30%高価買取）を選んでください' : 'ご希望の方法（店頭・出張・写真・宅配）を1つ選んでください', PLANMODE ? 'planBox' : 'kindBox'];
+    if(!val('name')) return [2, 'お名前を入力してください', 'fsCustomer'];
+    if(val('phone').replace(/[^0-9]/g, '').length < 10) return [2, '電話番号を入力してください', 'fsCustomer'];
+    if((k === 'photo' || k === 'takuhai') && !em) return [2, 'メールアドレスを入力してください（結果をお知らせします）', 'fsCustomer'];
+    if((k === 'visit' || k === 'takuhai') && !val('address')) return [2, 'ご住所を入力してください', 'fsCustomer'];
+    if((k === 'photo' || (PLANMODE && pre())) && photos.length === 0) return [3, '「写真を選ぶ・撮る」を押して、お品物の写真を選んでください', 'fsItems'];
+    if(!f.elements.adult.checked || !f.elements.consent.checked) return [4, '「18歳以上です」と「個人情報の取扱いに同意します」にチェックを入れてください', 'fsLast'];
+    return [4, 'いちばん下の赤いボタン「' + btn.textContent + '」を押してください', 'fsLast'];
+  }
+  var G = document.getElementById('guide'), GN = document.getElementById('gNext'), lastSec = '';
+  function guide(doneAll){
+    if(!G) return;
+    var t = doneAll ? [5, '受付完了です。下の「次にすること」をご覧ください', ''] : todo();
+    G.querySelectorAll('[data-g]').forEach(function(li){ var n = Number(li.dataset.g); li.classList.toggle('gok', n < t[0]); li.classList.toggle('gon', n === t[0]); });
+    GN.textContent = t[1];
+    f.querySelectorAll('.fs.now').forEach(function(x){ x.classList.remove('now'); });
+    var sec = t[2] && document.getElementById(t[2]); if(sec && !doneAll) sec.classList.add('now');
+    lastSec = t[2];
+  }
+  if(G){
+    G.addEventListener('click', function(ev){
+      var li = ev.target.closest('[data-g]'); if(!li) return;
+      var id = { 1: PLANMODE ? 'planBox' : 'kindBox', 2: 'fsCustomer', 3: 'fsItems', 4: 'fsLast' }[li.dataset.g];
+      var el = id && document.getElementById(id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    GN.parentNode.style.cursor = 'pointer';
+    GN.parentNode.addEventListener('click', function(){ var el = lastSec && document.getElementById(lastSec); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  }
+  guide();
   // 日付は今日以降
   var today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   f.querySelectorAll('input[type=date]').forEach(function(d){ d.min = today; });
@@ -58,7 +93,7 @@
       photos.push(await API.shrink(files[i], 1600));
     }
     if(files.length && photos.length >= MAX) say('写真は' + MAX + '枚までです', 'warn');
-    draw();
+    draw(); guide();
   });
   function draw(){
     thumbs.innerHTML = '';
@@ -66,7 +101,7 @@
       var fg = document.createElement('figure');
       fg.innerHTML = '<img alt="選んだ写真 ' + (i + 1) + '"><button type="button" aria-label="写真 ' + (i + 1) + ' を外す">×</button>';
       fg.querySelector('img').src = p;
-      fg.querySelector('button').onclick = function(){ photos.splice(i, 1); draw(); };
+      fg.querySelector('button').onclick = function(){ photos.splice(i, 1); draw(); guide(); };
       thumbs.appendChild(fg);
     });
   }
@@ -132,6 +167,24 @@
     finish(r, k, okN, photos.length, !!em, PLANMODE ? plan() : '', !!bk, Number(val('kitBoxes')) || 0);
   });
 
+  // 受付のあと、お客様が順番にすること
+  function nextList(k, pl, hasMail, hasBank, kitN, total){
+    var L = [];
+    var st = hasMail ? '「お申込み状況」のページ' : 'お電話';
+    if(k === 'shop') L = ['担当者からのご連絡をお待ちください（予約の前でも、営業時間内ならご来店いただけます）', 'ご来店の日は、お品物と顔写真付きの身分証をお持ちください'];
+    else if(k === 'visit') L = ['訪問の日時を決めるため、担当者からお電話します', '当日は、顔写真付きの身分証をご用意ください'];
+    else if(k === 'photo') L = ['査定の結果をメールでお知らせします。しばらくお待ちください', 'メールが届いたら「お申込み状況」のページで金額を確かめ、ボタンでお答えください'];
+    else if(pl){
+      L.push('「お申込み状況」のページで、身分証の画像を送ってください');
+      if(!hasBank) L.push('同じページで、お振込先の口座を登録してください');
+      if(pl === 'kodaka' && total) L.push('仮査定の結果をメールでお知らせします。ページで確かめてお答えください');
+      L.push((kitN ? '宅配キットが届いたら、' : '') + 'お品物を箱に詰め、受付番号とお名前のメモを入れて、着払いで送ってください');
+      L.push('送ったら、ページの「発送しました」ボタンを押してください');
+      L.push('査定の結果をメールでお知らせします。ページで金額を確かめ、ボタンでお答えください');
+    } else L = ['「お申込み状況」のページで、身分証の画像を送ってください', '宅配キットが届いたら、お品物を詰めて送ってください', '査定の結果をメールでお知らせします。ページで金額を確かめ、ボタンでお答えください'];
+    return '<div class="note blue" style="margin-top:14px;text-align:left"><b style="font-size:1.1rem">次にすること</b><ol style="margin:8px 0 0;padding-left:1.4em;display:grid;gap:6px;font-size:1.05rem">' + L.map(function(x){ return '<li>' + x + '</li>'; }).join('') + '</ol>'
+      + '<p style="margin-top:8px"><small>' + (hasMail ? '進み具合は「お申込み状況」のページで、メールアドレス、またはお名前と電話番号でいつでも確かめられます。' : '進み具合は「お申込み状況」のページで、お名前と電話番号で確かめられます。') + '</small></p></div>';
+  }
   function finish(r, k, okN, total, hasMail, pl, hasBank, kitN){
     var next = {
       shop: 'ご希望の日時を確認して、担当者からご連絡します。予約の確定前でも、営業時間内ならいつでもご来店いただけます。',
@@ -152,9 +205,10 @@
     var d = document.getElementById('done');
     d.innerHTML = '<h2>お申込みを受け付けました</h2><p style="margin-top:8px">受付番号</p><p class="no">' + r.receiptNo + '</p>'
       + '<p style="margin-top:12px">' + next + '</p>'
+      + nextList(k, pl, hasMail, hasBank, kitN, total)
       + (total ? '<p class="msg ' + (okN === total ? 'ok' : 'warn') + '">写真 ' + okN + ' / ' + total + ' 枚を送りました' + (okN < total ? '。届かなかった写真は「お申込み状況」の連絡欄からお知らせください' : '') + '</p>' : '')
       + (hasMail ? '<p style="margin-top:8px">確認のメールをお送りしました。届かない場合は、迷惑メールのフォルダもご確認ください。</p>' : '')
-      + '<div class="actions">' + (hasMail ? '<a class="btn blue" href="status.html">お申込み状況を見る</a>' : '') + '<a class="btn ghost" href="index.html">トップへ戻る</a></div>';
-    f.hidden = true; d.hidden = false; d.scrollIntoView({ behavior: 'smooth' });
+      + '<div class="actions"><a class="btn blue" href="status.html">お申込み状況を見る</a>' + '<a class="btn ghost" href="index.html">トップへ戻る</a></div>';
+    f.hidden = true; d.hidden = false; guide(true); d.scrollIntoView({ behavior: 'smooth' });
   }
 })();

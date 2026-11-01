@@ -38,6 +38,14 @@
     }catch(e){ say('loginMsg', e.message); }
     b.disabled = false;
   });
+  $('telForm').addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    var nm = $('tname').value.trim(), tl = $('ttel').value.trim(); if(!nm || !tl) return;
+    var b = ev.target.querySelector('button'); b.disabled = true;
+    try{ SESS = await API.call('portalByPhone', { name: nm, phone: tl }); SS.set(SESS); await start(); $('me').scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); }
+    catch(e){ say('loginMsg', e.message); }
+    b.disabled = false;
+  });
   $('logout').addEventListener('click', function(){ SS.set(null); location.reload(); });
 
   async function start(){
@@ -48,7 +56,7 @@
       try{ SESS = await API.call('portalEnter', { t: m[1] }); SS.set(SESS); }catch(e){ say('loginMsg', e.message); }
     }
     if(!SESS) return;
-    $('login').hidden = true; $('me').hidden = false; $('meMail').textContent = SESS.email + ' でお申込みの内容';
+    $('login').hidden = true; $('me').hidden = false; $('meMail').textContent = (SESS.label || SESS.email) + ' のお申込みの内容';
     try{ await load(); }catch(e){ if(e.code === 'auth'){ SS.set(null); SESS = null; $('login').hidden = false; $('me').hidden = true; } say('stMsg', e.message); }
   }
 
@@ -59,12 +67,38 @@
     $('cases').innerHTML = ALL.map(card).join('');
   }
 
+  // 「いま」と「次にお客様がすること」
+  function nowBox(c){
+    var s = c.status, n = '', sub = '', end = false;
+    var idNeed = c.kind === 'takuhai' && c.idStatus === 'none';
+    if(s === 'declined' || s === 'cancelled'){ n = 'このお申込みは終了しています。'; end = true; }
+    else if(s === 'done' || s === 'paid'){ n = 'お取引は完了しました。ご利用ありがとうございました。'; end = true; }
+    else if(s === 'appraised' || s === 'pre_appraised'){ n = '下の金額を確かめて、ボタンでお答えください。'; }
+    else if(c.kind === 'shop') n = s === 'scheduled' && c.scheduledAt ? dt(c.scheduledAt, true) + '　お品物と身分証を持ってご来店ください。' : '担当者からのご連絡をお待ちください。営業時間内なら予約の前でもご来店いただけます。';
+    else if(c.kind === 'visit') n = s === 'scheduled' && c.scheduledAt ? dt(c.scheduledAt, true) + '　担当者が伺います。身分証をご用意ください。' : s === 'accepted' ? '担当者からのご連絡をお待ちください。' : '担当者から日時のご連絡（お電話）をお待ちください。';
+    else if(c.kind === 'photo') n = s === 'accepted' ? '担当者から、売り方のご連絡をお待ちください。' : '写真で査定しています。結果をメールでお知らせします。';
+    else if(c.plan){
+      if(s === 'new') n = '写真で仮査定しています。結果をメールでお知らせします。';
+      else if(s === 'waiting' || s === 'contacted' || s === 'kit_sent') n = (c.kitBoxes > 0 && !c.kitTracking) ? '宅配キットの到着をお待ちください。届いたら、お品物を詰めて着払いで送ってください。' : 'お品物を箱に詰めて着払いで送り、下の「発送しました」ボタンを押してください。';
+      else if(s === 'shipped') n = 'お品物の到着をお待ちしています。届いたらお知らせします。';
+      else if(s === 'arrived') n = '査定しています。結果をメールでお知らせします。';
+      else if(s === 'accepted') n = c.bankSet ? 'ご登録の口座へのお振込みをお待ちください。' : '下の「お振込先の口座」を登録してください。';
+    } else {
+      if(s === 'kit_sent') n = '宅配キットが届いたら、お品物を詰めて送ってください。';
+      else if(s === 'arrived') n = '査定しています。結果をメールでお知らせします。';
+      else if(s === 'accepted') n = 'お振込みのご案内をお待ちください。';
+      else n = '宅配キットの発送をお待ちください。';
+    }
+    if(idNeed && !end) sub = 'あわせて、下の「ご本人確認の書類」から身分証の画像を送ってください（法律で必要です）。';
+    return '<div class="nowbox' + (end ? ' end' : '') + '"><div class="now">いま：<b>' + (ST[s] || s) + '</b></div><div class="next">' + (end ? '' : '次にすること：') + n + (sub ? '<small>' + sub + '</small>' : '') + '</div></div>';
+  }
+
   function card(c){
     if(c.plan) return planCard(c);
     var flow = FLOW[c.kind], idx = flow.indexOf(c.status);
     if(c.status === 'declined' || c.status === 'cancelled') idx = -1;
     var pill = c.status === 'appraised' ? 'go' : (c.status === 'accepted' || c.status === 'done') ? 'ok' : (c.status === 'declined' || c.status === 'cancelled') ? 'end' : '';
-    var h = '<article class="case" data-case="' + c.id + '"><div class="top"><div><b>' + KIND[c.kind] + '</b><br><small>受付番号 ' + esc(c.receiptNo) + '・' + dt(c.createdAt) + '</small></div><span class="pill ' + pill + '">' + ST[c.status] + '</span></div>';
+    var h = '<article class="case" data-case="' + c.id + '"><div class="top"><div><b>' + KIND[c.kind] + '</b><br><small>受付番号 ' + esc(c.receiptNo) + '・' + dt(c.createdAt) + '</small></div><span class="pill ' + pill + '">' + ST[c.status] + '</span></div>' + nowBox(c);
     if(idx >= 0) h += '<ol class="track" aria-label="進み具合">' + flow.map(function(s, i){ return '<li class="' + (i <= idx ? 'on' : '') + '" title="' + ST[s] + '"></li>'; }).join('') + '</ol>';
     if(c.wishes && !c.scheduledAt && (c.kind === 'shop' || c.kind === 'visit')) h += '<p><small>ご希望：' + esc(c.wishes) + '</small></p>';
     if(c.scheduledAt) h += '<p><b>' + (c.kind === 'visit' ? 'ご訪問' : 'ご来店') + 'の日時：</b>' + dt(c.scheduledAt, true) + '</p>';
@@ -105,7 +139,7 @@
     if(c.status === 'contacted' || c.status === 'kit_sent') idx = order.indexOf('waiting');
     var closed = c.status === 'declined' || c.status === 'cancelled';
     var pill = (c.status === 'appraised' || c.status === 'pre_appraised' || c.status === 'waiting') ? 'go' : (c.status === 'accepted' || c.status === 'paid' || c.status === 'done') ? 'ok' : closed ? 'end' : '';
-    var h = '<article class="case" data-case="' + c.id + '"><div class="top"><div><b>宅配買取・' + PLAN[c.plan] + '</b><br><small>受付番号 ' + esc(c.receiptNo) + '・' + dt(c.createdAt) + '</small></div><span class="pill ' + pill + '">' + (ST[c.status] || c.status) + '</span></div>';
+    var h = '<article class="case" data-case="' + c.id + '"><div class="top"><div><b>宅配買取・' + PLAN[c.plan] + '</b><br><small>受付番号 ' + esc(c.receiptNo) + '・' + dt(c.createdAt) + '</small></div><span class="pill ' + pill + '">' + (ST[c.status] || c.status) + '</span></div>' + nowBox(c);
     if(!closed){
       h += '<ol class="track" aria-label="進み具合">' + order.map(function(s, i){ return '<li class="' + (i <= idx ? 'on' : '') + '"></li>'; }).join('') + '</ol>';
       h += '<div class="flowbox"><b>お取引の流れ</b><ol>' + steps.map(function(x, i){ return '<li class="' + (i < idx ? 'done' : i === idx ? 'on' : '') + '">' + x[1] + (i === idx ? '　←いまここ' : '') + '</li>'; }).join('') + '</ol></div>';

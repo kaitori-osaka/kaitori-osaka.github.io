@@ -25,9 +25,13 @@
 <section class="band"><div class="wrap">
 <div class="ref-badge" id="refBadge" hidden>ご紹介元：<b id="refName"></b><span>このお申込みに記録されます</span></div>
 <script>window.REF_NAMES = {"iejimai": "家じまい相談窓口", "medical": "医療介護総合支援会", "kigyo": "企業支援 総合相談窓口", "kiyomichi": "KIYOMICHI", "matsubaya": "まつばや", "meiji-haitatsu": "明治けんこう配達", "nihon-anshin": "日本あんしん保障", "elitz": "エリッツ", "miyabi": "ミヤビグループ", "hokkoku": "北國新聞", "toyama-shimbun": "富山新聞", "hotdrive": "ホットドライブ"}; window.REF_PLANS = {"kiyomichi": true}; window.SEND_TO_HTML = "〒544-0021 大阪府大阪市生野区勝山南2-2-7<br>買取大吉 大阪勝山南店 宛（TEL 0120-933-496）";</script>
+<div class="guide" id="guide" aria-live="polite">
+<ol class="gsteps"><li data-g="1"><span>1</span>方法</li><li data-g="2"><span>2</span>お客様</li><li data-g="3"><span>3</span>お品物</li><li data-g="4"><span>4</span>確認・送信</li><li data-g="5"><span>5</span>受付完了</li></ol>
+<p class="gnext"><b>次にすること：</b><span id="gNext">ご希望の方法を選んでください</span></p>
+</div>
 <form class="form" id="applyForm" novalidate>
-<fieldset class="fs" id="kindBox"><legend>ご希望の方法</legend><div class="kinds"><label><input type="radio" name="kind" value="shop" required><span><b>店頭買取</b><span>お品物を持ってご来店。その場で査定し、ご納得いただければ現金でお支払いします。予約なしでも大丈夫です。</span></span></label><label><input type="radio" name="kind" value="visit" required><span><b>出張買取</b><span>大きい物・量が多い物・外出が難しい方に。ご指定の日時にご自宅へ伺い、その場で査定します。</span></span></label><label><input type="radio" name="kind" value="photo" required><span><b>写真査定</b><span>売るか決める前に、写真を送っておおよその金額を知りたい方に。結果はメールでお知らせします。</span></span></label><label><input type="radio" name="kind" value="takuhai" required><span><b>宅配買取</b><span>お店に行けない方に。箱に詰めて送るだけで、届いたお品物を査定して金額をお知らせします。</span></span></label></div></fieldset>
-<fieldset class="fs" id="planBox" hidden><legend>買取の方法（宅配買取）</legend>
+<fieldset class="fs" id="kindBox"><legend><span class="no">1</span>ご希望の方法</legend><div class="kinds"><label><input type="radio" name="kind" value="shop" required><span><b>店頭買取</b><span>お品物を持ってご来店。その場で査定し、ご納得いただければ現金でお支払いします。予約なしでも大丈夫です。</span></span></label><label><input type="radio" name="kind" value="visit" required><span><b>出張買取</b><span>大きい物・量が多い物・外出が難しい方に。ご指定の日時にご自宅へ伺い、その場で査定します。</span></span></label><label><input type="radio" name="kind" value="photo" required><span><b>写真査定</b><span>売るか決める前に、写真を送っておおよその金額を知りたい方に。結果はメールでお知らせします。</span></span></label><label><input type="radio" name="kind" value="takuhai" required><span><b>宅配買取</b><span>お店に行けない方に。箱に詰めて送るだけで、届いたお品物を査定して金額をお知らせします。</span></span></label></div></fieldset>
+<fieldset class="fs" id="planBox" hidden><legend><span class="no">1</span>買取の方法（宅配買取）</legend>
 <div class="kinds">
 <label><input type="radio" name="plan" value="matome"><span><b>A　おまとめ簡易買取</b><span>仮査定なし。不要な物を箱に詰めて着払いで送るだけ。価格がつかない物も処分費0円。</span></span></label>
 <label><input type="radio" name="plan" value="kodaka"><span><b>B　提携先ご紹介 30%高価買取</b><span>通常の査定額に30%上乗せ（貴金属・商品券は対象外）。ご希望なら写真で仮査定もできます。</span></span></label>
@@ -36,7 +40,7 @@
 <div class="note blue" id="sendNote" style="margin-top:12px"><b>お送り先（着払い）</b><br>〒544-0021 大阪府大阪市生野区勝山南2-2-7<br>買取大吉 大阪勝山南店 宛（TEL 0120-933-496）</div>
 </fieldset>
 
-<fieldset class="fs"><legend>お客様の情報</legend>
+<fieldset class="fs" id="fsCustomer"><legend><span class="no">2</span>お客様の情報</legend>
 <div class="f"><label for="name">お名前<span class="req">必須</span></label><input type="text" id="name" name="name" autocomplete="name" required maxlength="60"></div>
 <div class="f"><label for="kana">ふりがな<span class="opt">任意</span></label><input type="text" id="kana" name="kana" maxlength="60"></div>
 <div class="f"><label for="phone">電話番号<span class="req">必須</span></label><input type="tel" id="phone" name="phone" autocomplete="tel" inputmode="tel" required maxlength="20"><p class="hint">ハイフンはあってもなくても大丈夫です</p></div>
@@ -48,7 +52,7 @@
 <div class="f"><span class="lb">ご連絡の方法</span><div class="choices"><label><input type="radio" name="contactPref" value="phone" checked>電話</label><label><input type="radio" name="contactPref" value="email">メール</label><label><input type="radio" name="contactPref" value="either">どちらでも</label></div></div>
 </fieldset>
 
-<fieldset class="fs"><legend>お品物</legend>
+<fieldset class="fs" id="fsItems"><legend><span class="no">3</span>お品物</legend>
 <div class="f"><span class="lb">品目<span class="opt">いくつでも</span></span><div class="choices"><label><input type="checkbox" name="items" value="金・貴金属">金・貴金属</label><label><input type="checkbox" name="items" value="宝石・ジュエリー">宝石・ジュエリー</label><label><input type="checkbox" name="items" value="時計">時計</label><label><input type="checkbox" name="items" value="バッグ">バッグ</label><label><input type="checkbox" name="items" value="財布">財布</label><label><input type="checkbox" name="items" value="服">服</label><label><input type="checkbox" name="items" value="お酒">お酒</label><label><input type="checkbox" name="items" value="切手">切手</label><label><input type="checkbox" name="items" value="金券・チケット">金券・チケット</label><label><input type="checkbox" name="items" value="記念コイン・メダル">記念コイン・メダル</label><label><input type="checkbox" name="items" value="古銭">古銭</label><label><input type="checkbox" name="items" value="カメラ">カメラ</label><label><input type="checkbox" name="items" value="スマホ・タブレット">スマホ・タブレット</label><label><input type="checkbox" name="items" value="テレホンカード">テレホンカード</label><label><input type="checkbox" name="items" value="その他">その他</label></div></div>
 <div class="f"><label for="itemNote">くわしい内容<span class="opt">任意</span></label><textarea id="itemNote" name="itemNote" maxlength="2000" placeholder="例：18金のネックレス2本と、動かない腕時計1本"></textarea></div>
 <div class="f" data-show="visit takuhai"><label for="quantity">おおよその量<span class="opt">任意</span></label><input type="text" id="quantity" name="quantity" maxlength="100" placeholder="例：段ボール2箱くらい"></div>
@@ -76,7 +80,7 @@
 <div class="wish"><input type="date" name="wdate" aria-label="第3希望の日付"><select name="wslot" aria-label="第3希望の時間帯"><option value="">時間帯</option><option>午前（10〜12時）</option><option>昼（12〜15時）</option><option>夕方（15〜19時）</option></select></div>
 </fieldset>
 
-<fieldset class="fs"><legend>最後に</legend>
+<fieldset class="fs" id="fsLast"><legend><span class="no">4</span>最後に（確認して送信）</legend>
 <div class="f"><label for="howFound">当店を知ったきっかけ<span class="opt">任意</span></label><select id="howFound" name="howFound"><option value="">選んでください</option><option>店舗の看板を見て</option><option>インターネット検索</option><option>地図アプリ</option><option>チラシ</option><option>家族・知人の紹介</option><option>以前に利用した</option><option>その他</option></select></div>
 <div class="f"><label class="check"><input type="checkbox" name="adult" required><span>18歳以上です<span class="req">必須</span></span></label></div>
 <div class="f"><label class="check"><input type="checkbox" name="consent" required><span><a href="privacy.html" target="_blank">個人情報の取扱い</a>に同意します<span class="req">必須</span></span></label></div>

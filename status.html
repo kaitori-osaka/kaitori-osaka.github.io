@@ -21,13 +21,19 @@
 <button class="menu-btn" type="button" aria-expanded="false" aria-controls="drawer">メニュー</button>
 </div><nav class="drawer" id="drawer" hidden aria-label="メニュー"><a href="shop.html">店頭買取</a><a href="visit.html">出張買取</a><a href="photo.html">写真査定</a><a href="takuhai.html">宅配買取</a><a href="items.html">買取品目</a><a href="store.html">店舗・アクセス</a><a href="faq.html">よくある質問</a><a href="status.html">お申込み状況</a><a href="partners.html">提携先からご紹介のお客様</a></nav></header>
 <main id="main">
-<div class="ph"><div class="wrap"><h1>お申込み状況</h1><p>お申込みのときのメールアドレスで、進み具合・査定結果の確認や、担当者とのご連絡ができます。</p></div></div><div class="wrap crumb"><a href="index.html">トップ</a> ／ お申込み状況</div>
+<div class="ph"><div class="wrap"><h1>お申込み状況</h1><p>お申込みのときのメールアドレス、またはお名前と電話番号で、いまの進み具合と次にすることがわかります。</p></div></div><div class="wrap crumb"><a href="index.html">トップ</a> ／ お申込み状況</div>
 <section class="band"><div class="wrap" style="max-width:760px">
 <div id="login">
 <form class="form" id="loginForm">
 <div class="f"><label for="lmail">お申込みのときのメールアドレス</label><input type="email" id="lmail" autocomplete="email" required></div>
 <button class="btn primary" type="submit">確認用のメールを受け取る</button>
 <p class="hint" style="margin-top:10px">届いたメールのボタンを押すと、このページが開いてお申込みが表示されます。パスワードは不要です。</p>
+</form>
+<form class="form" id="telForm" style="margin-top:18px">
+<p style="font-weight:700;margin:0 0 8px">メールがない方・届かない方は、お名前と電話番号でも見られます</p>
+<div class="f"><label for="tname">お名前（お申込みのときと同じ）</label><input type="text" id="tname" autocomplete="name" required maxlength="60"></div>
+<div class="f"><label for="ttel">電話番号（お申込みのときと同じ）</label><input type="tel" id="ttel" autocomplete="tel" inputmode="tel" required maxlength="20"></div>
+<button class="btn blue" type="submit">お名前と電話番号で見る</button>
 </form>
 <div id="loginMsg" role="alert"></div>
 </div>
