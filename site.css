@@ -1,12 +1,12 @@
 /* 買取大吉 大阪勝山南店
-   店の看板（青地に白）をそのままサイトの顔にする。青・紺・白・薄青と、金を思わせる山吹を「押すところ」にだけ使う。
-   文字は読みやすさ重視のユニバーサルデザイン書体（BIZ UDPゴシック）1種類。年配の方が電話番号と営業時間をすぐ読めること優先。 */
+   買取大吉 VIガイドライン（2023.04 ver3.01）準拠：コーポレートカラーは 紺 RGB #100169（PANTONE 294C）・黒・赤 #FF0001。
+   紺を面、赤は「押すところ（電話・申込）」と印にだけ使う。書体はガイド指定の源ノ角ゴシック（= Noto Sans JP）。 */
 :root{
-  --blue:#1546A0; --blue-dk:#0E2A5C; --blue-lt:#EEF3FB; --blue-line:#C9D6EE;
-  --yama:#F2B705; --yama-dk:#B88A00; --yama-lt:#FFF6D6;
+  --blue:#100169; --blue-dk:#0A0046; --blue-lt:#EFEEF8; --blue-line:#CFCDE8;
+  --yama:#FF0001; --yama-dk:#C80001; --yama-lt:#FFF1F1;
   --ink:#16213A; --mute:#55607A; --line:#DCE3EF; --paper:#FFFFFF;
   --ok:#1E7B4F; --bad:#B42318; --warn:#9A6400;
-  --f:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+  --f:"Noto Sans JP","Source Han Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
   --wrap:1080px; --r:10px;
   color-scheme:light;
 }
@@ -33,14 +33,16 @@ p{margin:0}
 /* 看板（ヘッダー） */
 .hd{background:var(--blue);color:#fff;position:sticky;top:0;z-index:40;border-bottom:4px solid var(--yama)}
 .hd .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:64px}
-.brand{display:flex;align-items:baseline;gap:.6em;color:#fff;text-decoration:none;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:.6em;color:#fff;text-decoration:none;white-space:nowrap}
 .brand b{font-size:1.6rem;letter-spacing:.12em}
 .brand span{font-size:.95rem;letter-spacing:.06em}
 .nav{display:none;gap:4px}
 .nav a{color:#fff;text-decoration:none;padding:8px 10px;border-radius:6px;font-size:.95rem}
 .nav a:hover,.nav a[aria-current]{background:rgba(255,255,255,.14)}
-.menu-btn{background:none;border:2px solid rgba(255,255,255,.6);color:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:.9rem;cursor:pointer}
-@media (min-width:980px){.nav{display:flex}.menu-btn{display:none}}
+.menu-btn{background:none;border:2px solid rgba(255,255,255,.6);color:#fff;border-radius:8px;padding:6px 12px;font:inherit;font-size:.9rem;cursor:pointer;white-space:nowrap;flex-shrink:0}
+@media (min-width:1180px){.nav{display:flex}.menu-btn{display:none}}
+.nav a{white-space:nowrap}
+@media (max-width:420px){.brand span{display:none}}
 .drawer{background:var(--blue-dk)}
 .drawer a{display:block;color:#fff;text-decoration:none;padding:14px 16px;border-top:1px solid rgba(255,255,255,.12)}
 
@@ -54,7 +56,7 @@ p{margin:0}
 
 /* トップの看板 */
 .sign{background:var(--blue);color:#fff;position:relative;overflow:hidden}
-.sign::after{content:"";position:absolute;inset:auto 0 0;height:10px;background:repeating-linear-gradient(90deg,var(--yama) 0 40px,var(--blue-dk) 40px 80px)}
+.sign::after{content:"";position:absolute;inset:auto 0 0;height:6px;background:var(--yama)}
 .sign .wrap{padding-top:40px;padding-bottom:56px;display:grid;gap:28px}
 @media (min-width:900px){.sign .wrap{grid-template-columns:1.25fr 1fr;align-items:center;padding-top:56px;padding-bottom:72px}}
 .sign h1{font-size:clamp(2rem,6.4vw,3.4rem);letter-spacing:.06em;line-height:1.3}
@@ -79,8 +81,8 @@ p{margin:0}
 
 /* ボタン */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:52px;padding:10px 22px;border-radius:999px;border:0;font:inherit;font-weight:700;font-size:1.05rem;text-decoration:none;cursor:pointer}
-.btn.primary{background:var(--yama);color:var(--blue-dk)}
-.btn.primary:hover{background:#FFC929}
+.btn.primary{background:var(--yama);color:#fff}
+.btn.primary:hover{background:var(--yama-dk)}
 .btn.blue{background:var(--blue);color:#fff}
 .btn.ghost{background:#fff;color:var(--blue);border:2px solid var(--blue)}
 .btn.small{min-height:40px;padding:6px 14px;font-size:.92rem}
@@ -161,7 +163,7 @@ p{margin:0}
 .msg{border-radius:8px;padding:12px 14px;margin:12px 0;font-weight:700}
 .msg.ok{background:#E7F5EE;color:var(--ok)}
 .msg.bad{background:#FDECEA;color:var(--bad)}
-.msg.warn{background:var(--yama-lt);color:var(--warn)}
+.msg.warn{background:#FFF6D6;color:var(--warn)}
 .done{border:3px solid var(--ok);border-radius:var(--r);padding:24px;background:#fff}
 .done .no{font-size:1.6rem;font-weight:700;color:var(--blue-dk);letter-spacing:.06em}
 
@@ -169,7 +171,7 @@ p{margin:0}
 .case{border:2px solid var(--blue-line);border-radius:var(--r);padding:18px;background:#fff;margin-bottom:16px}
 .case .top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center}
 .pill{display:inline-block;border-radius:999px;padding:2px 12px;font-size:.85rem;font-weight:700;background:var(--blue-lt);color:var(--blue-dk)}
-.pill.go{background:var(--yama);color:var(--blue-dk)}
+.pill.go{background:var(--yama);color:#fff}
 .pill.ok{background:#E7F5EE;color:var(--ok)}
 .pill.end{background:#EEF0F3;color:var(--mute)}
 .track{display:flex;gap:4px;margin:14px 0;list-style:none;padding:0}
@@ -200,9 +202,18 @@ p{margin:0}
 .dock{position:fixed;inset:auto 0 0;z-index:45;display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
 .dock a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:62px;text-decoration:none;font-size:.82rem;font-weight:700;color:var(--blue-dk)}
 .dock a .ic{width:1.5em;height:1.5em;color:var(--blue)}
-.dock a.tel{background:var(--yama)}
-.dock a.tel .ic{color:var(--blue-dk)}
+.dock a.tel{background:var(--yama);color:#fff}
+.dock a.tel .ic{color:#fff}
 @media (min-width:900px){.dock{display:none}}
 
 /* 試験運用の表示 */
-.trial{background:var(--yama);color:var(--blue-dk);text-align:center;font-weight:700;font-size:.9rem;padding:6px 12px}
+.trial{background:var(--yama);color:#fff;text-align:center;font-weight:700;font-size:.9rem;padding:6px 12px}
+
+/* ロゴ（VIガイドラインのデータから切り出し。比率・色は変えない） */
+.brand img{display:block;height:40px;width:auto}
+@media (min-width:980px){.brand img{height:46px}}
+.sign .tagline{display:block;height:auto;width:min(100%,340px);margin-bottom:14px}
+.sign .stack{display:none}
+.ft .ft-logo{display:block;height:44px;width:auto;margin-bottom:12px}
+.hanko{display:inline-block;width:44px;height:44px;vertical-align:middle}
+@media (min-width:1180px){.brand span{display:none}}
