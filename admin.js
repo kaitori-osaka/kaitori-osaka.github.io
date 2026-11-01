@@ -437,12 +437,14 @@
       var tgt = d.querySelector('[data-f=' + b.dataset.target + ']'), lb = b.textContent;
       var extra = ['final_amount', 'estimate_low', 'estimate_high', 'base_amount'].map(function(k){ var v = g(k); return v ? ({ final_amount: '金額', estimate_low: '概算下限', estimate_high: '概算上限', base_amount: '通常の査定額' })[k] + '：' + Number(v).toLocaleString('ja-JP') + '円' : ''; }).filter(Boolean).join('／');
       try{
-        b.textContent = 'AIが下書きを作っています…';
-        var dr = await call('staffDraft', { id: r.id, purpose: b.dataset.purpose, hint: g('aihint'), extra: extra, actor: who });
+        var redo = b.dataset.redo === '1', prev = redo && tgt ? (tgt.value || tgt.dataset.ai || '') : '';
+        b.textContent = redo ? 'AIが考え直しています…' : 'AIが下書きを作り、見直しています…';
+        var dr = await call('staffDraft', { id: r.id, purpose: b.dataset.purpose, hint: g('aihint'), extra: extra, prev: prev, actor: who });
         if(tgt){ tgt.value = dr.text; tgt.dataset.ai = dr.text; tgt.focus(); }
-        var ok = d.querySelector('[data-aiok=' + b.dataset.target + ']'); if(ok) ok.hidden = false;
+        var ok = d.querySelector('[data-aiok=' + b.dataset.target + ']'); if(ok){ ok.hidden = false;
+          if(!ok.querySelector('[data-redo]')) ok.insertAdjacentHTML('beforeend', '<button class="btn ghost small" data-act="ai-draft" data-redo="1" data-target="' + b.dataset.target + '" data-purpose="' + b.dataset.purpose + '">いまいちなので考え直す</button>'); }
         var cb = d.querySelector('[data-f=aiok_' + b.dataset.target + ']'); if(cb) cb.checked = false;
-        say('AIの下書きを入れました。確認・修正してから送ってください', 'ok');
+        say(redo ? '考え直した文面を入れました。確認・修正してから送ってください' : 'AIの下書きを入れました（AIが自分で見直し済み）。確認・修正してから送ってください', 'ok');
       }catch(e){ say(e.message); }
       b.textContent = lb; b.disabled = false; return;
     }
