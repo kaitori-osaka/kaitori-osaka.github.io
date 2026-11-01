@@ -70,7 +70,9 @@
     f.elements.kitBoxes.value = '0';   // 提携先プランは「手持ちの箱で送る」を最初に選んでおく
     var pq = PQ; if(pq){ var rp = f.querySelector('input[name=plan][value="' + pq + '"]'); if(rp) rp.checked = true; }
   }
-  f.addEventListener('change', function(ev){ if(ev.target.name === 'kind') sync(); syncPlan(); guide(); });
+  // 連絡方法で「LINE」を選んだら LINE ID の欄を出す
+  function syncLine(){ var c = f.querySelector('[name=contactPref]:checked'), lf = document.getElementById('lineField'); if(lf) lf.hidden = !(c && c.value === 'line'); }
+  f.addEventListener('change', function(ev){ if(ev.target.name === 'kind') sync(); if(ev.target.name === 'contactPref') syncLine(); syncPlan(); guide(); });
   f.addEventListener('input', function(){ guide(); });
   sync(); syncPlan();
 
@@ -167,7 +169,7 @@
     var p = {
       kind: k, name: val('name'), kana: val('kana'), phone: val('phone'), email: em,
       postal: (k === 'visit' || k === 'takuhai') ? val('postal') : '', address: (k === 'visit' || k === 'takuhai') ? val('address') : '',
-      contactPref: (f.querySelector('[name=contactPref]:checked') || {}).value || 'phone',
+      contactPref: (f.querySelector('[name=contactPref]:checked') || {}).value || 'phone', lineId: val('lineId'),
       items: Array.prototype.map.call(f.querySelectorAll('[name=items]:checked'), function(c){ return c.value; }),
       itemNote: val('itemNote'), quantity: (k === 'visit' || k === 'takuhai') ? val('quantity') : '',
       kitBoxes: k === 'takuhai' ? Number(val('kitBoxes')) : null,
