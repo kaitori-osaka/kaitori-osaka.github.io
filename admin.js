@@ -93,6 +93,7 @@
         + '<span class="l2"><span class="tag">' + KIND[r.kind] + '</span>' + esc(r.receipt_no) + '・' + dt(r.created_at)
         + (r.mode === 'trial' ? '<span class="tag trial">試験</span>' : '')
         + (r.ref ? '<span class="tag">紹介 ' + esc(r.ref) + '</span>' : '')
+        + (r.ref && (r.kind === 'shop' || r.kind === 'visit') ? '<span class="tag go">30%上乗せ</span>' : '')
         + (r.plan ? '<span class="tag go">' + PLAN[r.plan] + (r.pre_est ? '・仮査定' : '') + '</span>' : '')
         + (nextTodo(r) && CLOSED.indexOf(r.status) < 0 ? '<span class="tag">次：' + esc(nextTodo(r)) + '</span>' : '')
         + (r.unread_staff ? '<span class="tag new">連絡 ' + r.unread_staff + '</span>' : '')
@@ -144,7 +145,7 @@
       + '<dt>メール</dt><dd>' + (r.email ? esc(r.email) : '（なし）') + '</dd>'
       + '<dt>連絡方法</dt><dd>' + ({ phone: '電話', email: 'メール', either: 'どちらでも' }[r.contact_pref]) + '</dd>'
       + (r.address ? '<dt>住所</dt><dd>' + esc((r.postal ? '〒' + r.postal + ' ' : '') + r.address) + '</dd>' : '')
-      + (r.ref ? '<dt>紹介元</dt><dd><b>' + esc(r.ref) + '</b></dd>' : '')
+      + (r.ref ? '<dt>紹介元</dt><dd><b>' + esc(r.ref) + '</b>' + (r.kind === 'shop' || r.kind === 'visit' || r.plan === 'kodaka' ? '<br><span class="tag go">30%上乗せの対象</span>（貴金属・商品券は対象外）' : '') + '</dd>' : '')
       + (r.how_found ? '<dt>きっかけ</dt><dd>' + esc(r.how_found) + '</dd>' : '')
       + '</dl><dl class="kv">'
       + '<dt>品目</dt><dd>' + esc((r.items || []).join('、') || '（未選択）') + '</dd>'

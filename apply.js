@@ -12,6 +12,8 @@
       var on = !!k && el.dataset.show.split(' ').indexOf(k) >= 0;
       el.hidden = !on;
     });
+    // 紹介のお客様：店頭・出張・B（30%高価買取）は30%上乗せの対象であることを表示する
+    up30();
     var wl = document.getElementById('wishLegend'); if(wl) wl.textContent = k === 'visit' ? 'ご訪問の希望日時' : 'ご来店の希望日時';
   }
   var Q = new URLSearchParams(location.search), q = Q.get('t');
@@ -49,7 +51,9 @@
   }
   function plan(){ var r = f.querySelector('input[name=plan]:checked'); return r ? r.value : ''; }
   function pre(){ return plan() === 'kodaka' && f.elements.preEst.checked; }
+  function up30(){ var u3 = document.getElementById('up30'), k = kind(); if(u3) u3.hidden = !(REFNAME && (k === 'shop' || k === 'visit' || (PLANMODE && plan() === 'kodaka'))); }
   function syncPlan(){
+    up30();
     if(!PLANMODE) return;
     var pl = plan();
     document.getElementById('preBox').hidden = pl !== 'kodaka';
