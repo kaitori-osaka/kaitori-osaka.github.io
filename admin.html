@@ -32,6 +32,9 @@
 </section>
 
 <section id="app" hidden>
+<nav class="views" id="views" aria-label="画面の切り替え"><button type="button" data-view="cases" class="on">受付・査定</button><button type="button" data-view="customers">顧客管理</button><button type="button" data-view="products">商品管理表</button><button type="button" data-view="buyers">卸先管理帳</button><button type="button" data-view="ledger">売上台帳</button></nav>
+<div id="appMsg" role="alert"></div>
+<div id="vCases">
 <div class="bar">
 <div class="tabs" role="tablist">
 <button data-tab="todo" class="on">要対応 <span class="cnt" id="cTodo"></span></button>
@@ -44,11 +47,12 @@
 <button class="btn ghost small" id="csv" type="button">表を書き出す</button>
 </div>
 </div>
-<div id="appMsg" role="alert"></div>
 <div class="split">
 <div class="list" id="list"></div>
 <div class="detail" id="detail"><p class="empty">左の一覧から案件を選んでください。</p></div>
 </div>
+</div>
+<div id="vBook" hidden></div>
 </section>
 </main>
 <div class="lightbox" id="lb" hidden><img alt="拡大した写真"><button type="button" aria-label="閉じる">×</button></div>

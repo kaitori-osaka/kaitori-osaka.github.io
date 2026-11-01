@@ -118,7 +118,7 @@
   }
   document.querySelector('.tabs').addEventListener('click', function(ev){ var b = ev.target.closest('button'); if(!b) return; TAB = b.dataset.tab; drawList(); });
   $('fKind').onchange = drawList; $('fq').oninput = drawList;
-  $('reload').onclick = function(){ refresh(); };
+  $('reload').onclick = async function(){ await refresh(); if(VIEW !== 'cases'){ try{ await loadBooks(); drawBook(); }catch(e){ say(e.message); } } };
   $('list').addEventListener('click', function(ev){ var b = ev.target.closest('.row'); if(b) open(b.dataset.id); });
 
   // ── 詳細 ──
@@ -689,6 +689,268 @@
     var csv = '﻿' + lines.map(function(l){ return l.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = '申込一覧_' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
   };
+
+  // ───────────────────────── 台帳（顧客管理・商品管理表・卸先管理帳・売上台帳）─────────────────────────
+  var VIEW = 'cases', BK = null, BSEL = {}, BOPEN = null, BF = { pst: 'stock', pq: '', cq: '', month: '' };
+  var DEAL = ['accepted', 'paid', 'done'];
+  function ckey(r){ var t = String(r.phone || '').replace(/[^0-9]/g, ''); return t ? 'tel:' + t : 'mail:' + String(r.email || r.name || '').toLowerCase(); }
+  function ymd(s){ if(!s) return ''; var d = new Date(new Date(s).getTime() + 9 * 3600e3); return d.toISOString().slice(0, 10); }
+  function ym(s){ return ymd(s).slice(0, 7); }
+  // 買取金額：お知らせした金額。なければ明細の合計（おまとめ価格を含む）
+  function dealAmt(r){
+    if(r.final_amount != null) return Number(r.final_amount);
+    var L = Array.isArray(r.lines) ? r.lines : []; if(!L.length) return null;
+    return L.reduce(function(t, x){ return t + (x.matome || x.price == null ? 0 : Number(x.price)); }, 0) + Number(r.matome_amount || 0);
+  }
+  function isDeal(r){ return DEAL.indexOf(r.status) >= 0 && dealAmt(r) != null; }
+  function dealDate(r){ return r.paid_at || r.answer_at || r.estimate_at || r.created_at; }
+  function csvDl(name, head, rows){
+    var csv = '﻿' + [head].concat(rows).map(function(l){ return l.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name + '_' + ymd(new Date()) + '.csv'; a.click();
+  }
+  async function loadBooks(){ BK = await call('staffBooks'); }
+  async function showView(v){
+    VIEW = v;
+    document.querySelectorAll('#views button').forEach(function(b){ b.classList.toggle('on', b.dataset.view === v); });
+    $('vCases').hidden = v !== 'cases'; $('vBook').hidden = v === 'cases';
+    if(v === 'cases') return;
+    $('vBook').innerHTML = '<p class="empty">読み込んでいます…</p>';
+    try{ await loadBooks(); drawBook(); }catch(e){ say(e.message); }
+  }
+  $('views').addEventListener('click', function(ev){ var b = ev.target.closest('[data-view]'); if(b) showView(b.dataset.view); });
+  function drawBook(){
+    if(!BK) return;
+    var f = { customers: customersView, products: productsView, buyers: buyersView, ledger: ledgerView }[VIEW];
+    if(f) $('vBook').innerHTML = f();
+    if(VIEW === 'customers' && BOPEN) { var el = $('vBook').querySelector('[data-cust-detail]'); if(el) el.scrollIntoView({ block: 'nearest' }); }
+  }
+
+  // ── 顧客管理（受付の記録から自動でまとめる。区分とメモは担当者が書ける）──
+  function customers(){
+    var M = {};
+    ROWS.forEach(function(r){
+      var k = ckey(r), c = M[k] || (M[k] = { key: k, name: r.name, kana: r.kana, phone: r.phone, email: r.email, address: r.address, n: 0, deals: 0, total: 0, last: '', first: r.created_at, refs: {}, kinds: {}, apps: [] });
+      c.n++; c.apps.push(r); c.kinds[KIND[r.kind]] = 1; if(r.ref) c.refs[r.ref] = 1;
+      if(r.created_at > c.last){ c.last = r.created_at; c.name = r.name; c.kana = r.kana || c.kana; c.address = r.address || c.address; c.email = r.email || c.email; }
+      if(r.created_at < c.first) c.first = r.created_at;
+      if(isDeal(r)){ c.deals++; c.total += dealAmt(r); }
+    });
+    var notes = {}; (BK.notes || []).forEach(function(x){ notes[x.key] = x; });
+    return Object.keys(M).map(function(k){ var c = M[k]; c.note = (notes[k] || {}).note || ''; c.rank = (notes[k] || {}).rank || ''; return c; })
+      .sort(function(a, b){ return a.last < b.last ? 1 : -1; });
+  }
+  function customersView(){
+    var C = customers(), q = BF.cq.replace(/[-\s]/g, '');
+    var L = C.filter(function(c){ return !q || (c.name + (c.kana || '') + c.phone + (c.email || '') + c.note + c.rank).replace(/[-\s]/g, '').indexOf(q) >= 0; });
+    var sumT = C.reduce(function(t, c){ return t + c.total; }, 0), rep = C.filter(function(c){ return c.deals >= 2; }).length;
+    var h = '<div class="bk-head"><h2>顧客管理</h2><div class="bk-tools"><input type="search" data-bf="cq" value="' + esc(BF.cq) + '" placeholder="名前・電話・メモで探す"><button class="btn ghost small" data-bk="cust-csv">表を書き出す</button></div></div>'
+      + '<div class="kpis"><div><small>お客様</small><b>' + C.length + '人</b></div><div><small>2回以上ご成約</small><b>' + rep + '人</b></div><div><small>買取の合計</small><b>' + yen(sumT) + '</b></div></div>'
+      + '<p class="hint">受付の記録から、電話番号ごとに自動でまとめています。区分とメモはお客様を選んで書けます。</p>'
+      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>お名前</th><th>電話</th><th>区分</th><th class="num">お申込み</th><th class="num">成約</th><th class="num">買取合計</th><th>最終</th></tr></thead><tbody>'
+      + (L.length ? L.map(function(c){ return '<tr class="click' + (BOPEN === c.key ? ' on' : '') + '" data-bk="cust-open" data-key="' + esc(c.key) + '"><td><b>' + esc(c.name) + '</b>' + (c.kana ? '<br><small>' + esc(c.kana) + '</small>' : '') + '</td><td>' + esc(c.phone) + '</td><td>' + (c.rank ? '<span class="tag go">' + esc(c.rank) + '</span>' : '') + '</td><td class="num">' + c.n + '</td><td class="num">' + c.deals + '</td><td class="num">' + yen(c.total) + '</td><td>' + ymd(c.last) + '</td></tr>'
+        + (BOPEN === c.key ? '<tr><td colspan="7">' + custDetail(c) + '</td></tr>' : ''); }).join('') : '<tr><td colspan="7" class="empty">見つかりません</td></tr>')
+      + '</tbody></table></div>';
+    return h;
+  }
+  function custDetail(c){
+    var P = (BK.products || []).filter(function(p){ return c.apps.some(function(a){ return a.id === p.app_id; }); });
+    return '<div class="cust" data-cust-detail><div class="grid2"><dl class="kv"><dt>お名前</dt><dd>' + esc(c.name) + (c.kana ? '（' + esc(c.kana) + '）' : '') + '</dd><dt>電話</dt><dd><a href="tel:' + esc(c.phone) + '">' + esc(c.phone) + '</a></dd>'
+      + (c.email ? '<dt>メール</dt><dd>' + esc(c.email) + '</dd>' : '') + (c.address ? '<dt>住所</dt><dd>' + esc(c.address) + '</dd>' : '')
+      + '<dt>初回</dt><dd>' + ymd(c.first) + '</dd><dt>利用方法</dt><dd>' + esc(Object.keys(c.kinds).join('・')) + '</dd>' + (Object.keys(c.refs).length ? '<dt>紹介元</dt><dd>' + esc(Object.keys(c.refs).join('、')) + '</dd>' : '') + '</dl>'
+      + '<div><label class="f">区分<br><select data-cf="rank">' + ['', '一般', '常連', '優良', '紹介', '要注意'].map(function(x){ return '<option' + (x === c.rank ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>'
+      + '<div class="f"><label>メモ（お客様には見えません）</label><textarea data-cf="note" style="min-height:80px">' + esc(c.note) + '</textarea></div><button class="btn blue small" data-bk="cust-save" data-key="' + esc(c.key) + '" data-name="' + esc(c.name) + '">区分・メモを保存</button></div></div>'
+      + '<h3 style="margin-top:12px">お申込みの履歴</h3><table class="bk-table"><thead><tr><th>受付日</th><th>受付番号</th><th>方法</th><th>状態</th><th class="num">金額</th><th></th></tr></thead><tbody>'
+      + c.apps.map(function(a){ return '<tr><td>' + ymd(a.created_at) + '</td><td>' + esc(a.receipt_no) + '</td><td>' + KIND[a.kind] + '</td><td>' + ST[a.status] + '</td><td class="num">' + yen(a.final_amount) + '</td><td><button class="btn ghost small" data-bk="go-case" data-id="' + a.id + '">開く</button></td></tr>'; }).join('')
+      + '</tbody></table>'
+      + (P.length ? '<h3 style="margin-top:12px">買い取ったお品物（' + P.length + '点）</h3><table class="bk-table"><tbody>' + P.map(function(p){ return '<tr><td>' + esc(p.name) + '</td><td class="num">' + yen(p.cost) + '</td><td>' + (BK.productSt[p.status] || p.status) + '</td></tr>'; }).join('') + '</tbody></table>' : '')
+      + '</div>';
+  }
+
+  // ── 商品管理表（買取 → 在庫 → 卸に出品 → 売却）──
+  function profit(p){ return p.price == null ? null : Number(p.price) - Number(p.fee || 0) - Number(p.cost || 0); }
+  function productsView(){
+    var P = BK.products || [], st = BF.pst, q = BF.pq;
+    var L = P.filter(function(p){ return (!st || p.status === st) && (!q || (p.name + (p.receipt_no || '') + (p.seller || '') + (p.buyer || '') + p.id).indexOf(q) >= 0); })
+      .sort(function(a, b){ return a.created_at < b.created_at ? 1 : -1; });
+    var cnt = function(s){ return P.filter(function(p){ return p.status === s; }); };
+    var stock = cnt('stock'), listed = cnt('listed'), sold = cnt('sold');
+    var sum = function(A, k){ return A.reduce(function(t, p){ return t + Number(p[k] || 0); }, 0); };
+    var buyers = (BK.buyers || []).filter(function(b){ return b.active !== false; });
+    var bopt = '<option value="">卸先を選ぶ</option>' + buyers.map(function(b){ return '<option value="' + b.id + '">' + esc(b.name) + '</option>'; }).join('');
+    var nsel = Object.keys(BSEL).filter(function(k){ return BSEL[k]; }).length;
+    var pending = ROWS.filter(function(r){ return Array.isArray(r.lines) && r.lines.length && (r.status === 'paid' || r.status === 'done' || (r.status === 'accepted' && (r.kind === 'shop' || r.kind === 'visit'))) && !P.some(function(p){ return p.app_id === r.id; }); });
+    var h = '<div class="bk-head"><h2>商品管理表</h2><div class="bk-tools"><select data-bf="pst"><option value="">すべての状態</option>' + Object.keys(BK.productSt).map(function(k){ return '<option value="' + k + '"' + (k === st ? ' selected' : '') + '>' + BK.productSt[k] + '</option>'; }).join('') + '</select>'
+      + '<input type="search" data-bf="pq" value="' + esc(q) + '" placeholder="品名・受付番号・売主で探す"><button class="btn ghost small" data-bk="prod-csv">表を書き出す</button></div></div>'
+      + '<div class="kpis"><div><small>在庫</small><b>' + stock.length + '点</b><small>原価 ' + yen(sum(stock, 'cost')) + '</small></div><div><small>出品中</small><b>' + listed.length + '点</b><small>原価 ' + yen(sum(listed, 'cost')) + '</small></div><div><small>売却済</small><b>' + sold.length + '点</b><small>売上 ' + yen(sum(sold, 'price')) + '</small></div></div>'
+      + (pending.length ? '<p class="note">振込済み・成約のお申込みのうち、まだ商品管理表に入っていない明細が <b>' + pending.length + '件</b> あります。<button class="btn blue small" data-bk="prod-import">受付の明細から取り込む</button></p>' : '')
+      + '<p class="hint">振込済み・完了になると（店頭・出張は成約で）、明細が自動でここに入ります。行の左のチェックでまとめて操作できます。行を押すと1点ずつ直せます。</p>'
+      + '<div class="bulk"><b>チェックした ' + nsel + '点を：</b><select data-bb="buyer">' + bopt + '</select><input type="date" data-bb="date" value="' + ymd(new Date()) + '">'
+      + '<button class="btn blue small" data-bk="bulk-list"' + (nsel ? '' : ' disabled') + '>卸に出品</button>'
+      + '<input type="number" data-bb="total" min="0" placeholder="売却額の合計（円）"><input type="number" data-bb="fee" min="0" placeholder="手数料の合計（円）">'
+      + '<button class="btn primary small" data-bk="bulk-sold"' + (nsel ? '' : ' disabled') + '>売却を記録</button><button class="btn ghost small" data-bk="bulk-stock"' + (nsel ? '' : ' disabled') + '>在庫に戻す</button></div>'
+      + '<p class="hint">売却額の合計は、チェックした商品の買取価格の比率で各商品に分けます（1点ずつ直すこともできます）。</p>'
+      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th><input type="checkbox" data-bk="sel-all" aria-label="すべて選ぶ"' + (L.length && L.every(function(p){ return BSEL[p.id]; }) ? ' checked' : '') + '></th><th>登録日</th><th>品名</th><th>受付番号・売主</th><th class="num">点数</th><th class="num">買取価格</th><th>状態</th><th>卸先</th><th class="num">売却価格</th><th class="num">粗利</th></tr></thead><tbody>'
+      + (L.length ? L.map(function(p){ var pr = profit(p); return '<tr class="click' + (BOPEN === p.id ? ' on' : '') + '"><td><input type="checkbox" data-sel="' + p.id + '"' + (BSEL[p.id] ? ' checked' : '') + '></td><td data-bk="prod-open" data-id="' + p.id + '">' + ymd(p.created_at) + '</td><td data-bk="prod-open" data-id="' + p.id + '"><b>' + esc(p.name) + '</b>' + (p.matome ? ' <span class="tag">おまとめ</span>' : '') + '<br><small>' + esc(p.id) + '</small></td><td>' + esc(p.receipt_no || '手入力') + '<br><small>' + esc(p.seller || '') + '</small></td><td class="num">' + (p.qty || 1) + '</td><td class="num">' + yen(p.cost) + '</td><td><span class="tag ' + ({ stock: '', listed: 'go', sold: 'ok' }[p.status] || 'new') + '">' + (BK.productSt[p.status] || p.status) + '</span></td><td>' + esc(p.buyer || '') + '</td><td class="num">' + yen(p.price) + '</td><td class="num' + (pr < 0 ? ' minus' : '') + '">' + (pr == null ? '' : yen(pr)) + '</td></tr>'
+        + (BOPEN === p.id ? '<tr><td colspan="10">' + prodEdit(p, bopt) + '</td></tr>' : ''); }).join('') : '<tr><td colspan="10" class="empty">該当する商品はありません</td></tr>')
+      + '</tbody></table></div>'
+      + '<details class="box"><summary><b>商品を手で追加する</b>（受付を通さずに買い取った物など）</summary><div class="inline" style="margin-top:8px"><label class="f">品名<br><input type="text" data-pa="name" maxlength="120"></label><label class="f">品目<br><input type="text" data-pa="category" maxlength="30"></label><label class="f">点数<br><input type="number" data-pa="qty" value="1" min="1"></label><label class="f">買取価格（円）<br><input type="number" data-pa="cost" min="0"></label><label class="f">売主<br><input type="text" data-pa="seller" maxlength="60"></label></div><button class="btn blue small" data-bk="prod-add">追加する</button></details>';
+    return h;
+  }
+  function prodEdit(p, bopt){
+    var v = function(k){ return p[k] == null ? '' : esc(p[k]); };
+    return '<div class="cust" data-prod-edit="' + p.id + '"><div class="inline">'
+      + '<label class="f">品名<br><input type="text" data-pe="name" value="' + v('name') + '" maxlength="120" style="min-width:260px"></label>'
+      + '<label class="f">点数<br><input type="number" data-pe="qty" value="' + v('qty') + '" min="1"></label>'
+      + '<label class="f">買取価格（円）<br><input type="number" data-pe="cost" value="' + v('cost') + '" min="0"></label>'
+      + '<label class="f">状態<br><select data-pe="status">' + Object.keys(BK.productSt).map(function(k){ return '<option value="' + k + '"' + (k === p.status ? ' selected' : '') + '>' + BK.productSt[k] + '</option>'; }).join('') + '</select></label>'
+      + '<label class="f">卸先<br><select data-pe="buyer_id">' + bopt.replace('value="' + p.buyer_id + '"', 'value="' + p.buyer_id + '" selected') + '</select></label>'
+      + '<label class="f">出品日<br><input type="date" data-pe="listed_at" value="' + ymd(p.listed_at) + '"></label>'
+      + '<label class="f">売却日<br><input type="date" data-pe="sold_at" value="' + ymd(p.sold_at) + '"></label>'
+      + '<label class="f">売却価格（円）<br><input type="number" data-pe="price" value="' + v('price') + '" min="0"></label>'
+      + '<label class="f">手数料（円）<br><input type="number" data-pe="fee" value="' + v('fee') + '" min="0"></label>'
+      + '<label class="f">入金額（円）<br><input type="number" data-pe="paid_in" value="' + v('paid_in') + '" min="0"></label>'
+      + '<label class="f">入金日<br><input type="date" data-pe="paid_in_at" value="' + ymd(p.paid_in_at) + '"></label></div>'
+      + '<div class="f"><label>メモ</label><input type="text" data-pe="memo" value="' + v('memo') + '" maxlength="300"></div>'
+      + '<div class="actions"><button class="btn blue small" data-bk="prod-save" data-id="' + p.id + '">保存</button>' + (p.app_id ? '<button class="btn ghost small" data-bk="go-case" data-id="' + p.app_id + '">買取のお申込みを開く</button>' : '') + '</div></div>';
+  }
+
+  // ── 卸先管理帳 ──
+  function buyersView(){
+    var B = BK.buyers || [], P = BK.products || [];
+    var h = '<div class="bk-head"><h2>卸先管理帳</h2><div class="bk-tools"><button class="btn blue small" data-bk="buyer-new">卸先を追加</button><button class="btn ghost small" data-bk="buyer-csv">表を書き出す</button></div></div>'
+      + (BOPEN === 'new' ? buyerForm({ active: true }) : '')
+      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>名称</th><th>種別</th><th>担当者・電話</th><th>取扱品目</th><th class="num">手数料率</th><th class="num">出品中</th><th class="num">売却</th><th class="num">売上</th><th class="num">粗利</th></tr></thead><tbody>'
+      + (B.length ? B.map(function(b){
+          var mine = P.filter(function(p){ return p.buyer_id === b.id; }), sold = mine.filter(function(p){ return p.status === 'sold'; });
+          var sales = sold.reduce(function(t, p){ return t + Number(p.price || 0); }, 0), pf = sold.reduce(function(t, p){ return t + (profit(p) || 0); }, 0);
+          return '<tr class="click' + (b.active === false ? ' off' : '') + (BOPEN === b.id ? ' on' : '') + '" data-bk="buyer-open" data-id="' + b.id + '"><td><b>' + esc(b.name) + '</b>' + (b.active === false ? ' <span class="tag">休止</span>' : '') + '</td><td>' + esc(b.type || '') + '</td><td>' + esc(b.person || '') + '<br><small>' + esc(b.tel || '') + '</small></td><td>' + esc(b.items || '') + '</td><td class="num">' + (b.fee_rate == null ? '' : b.fee_rate + '%') + '</td><td class="num">' + mine.filter(function(p){ return p.status === 'listed'; }).length + '</td><td class="num">' + sold.length + '</td><td class="num">' + yen(sales) + '</td><td class="num">' + yen(pf) + '</td></tr>'
+            + (BOPEN === b.id ? '<tr><td colspan="9">' + buyerForm(b) + '</td></tr>' : '');
+        }).join('') : '<tr><td colspan="9" class="empty">まだ卸先がありません。「卸先を追加」から登録してください。</td></tr>')
+      + '</tbody></table></div>';
+    return h;
+  }
+  function buyerForm(b){
+    var v = function(k){ return b[k] == null ? '' : esc(b[k]); };
+    var t = function(k, label, w){ return '<label class="f">' + label + '<br><input type="text" data-be="' + k + '" value="' + v(k) + '"' + (w ? ' style="min-width:' + w + 'px"' : '') + '></label>'; };
+    return '<div class="cust" data-buyer-form="' + (b.id || '') + '"><div class="inline">' + t('name', '名称', 220)
+      + '<label class="f">種別<br><select data-be="type">' + BK.buyerTypes.map(function(x){ return '<option' + (x === b.type ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>'
+      + t('person', '担当者') + t('tel', '電話') + t('email', 'メール', 200) + t('address', '住所', 260) + t('items', '取扱品目', 200)
+      + '<label class="f">手数料率（%）<br><input type="number" data-be="fee_rate" value="' + v('fee_rate') + '" min="0" step="0.1"></label>'
+      + t('terms', '支払条件', 200) + t('license', '古物商許可番号', 200) + '</div>'
+      + '<div class="f"><label>メモ</label><textarea data-be="memo">' + v('memo') + '</textarea></div>'
+      + '<label class="check"><input type="checkbox" data-be="active"' + (b.active === false ? '' : ' checked') + '> 取引中（外すと「休止」になり、出品先の選択肢に出ません）</label>'
+      + '<div class="actions"><button class="btn blue small" data-bk="buyer-save" data-id="' + (b.id || '') + '">保存</button><button class="btn ghost small" data-bk="close">閉じる</button></div></div>';
+  }
+
+  // ── 売上台帳（仕入＝買取 と 販売＝卸への売却。粗利）──
+  function ledgerView(){
+    var m = BF.month || ym(new Date()), all = m === 'all';
+    var inM = function(s){ return all || ym(s) === m; };
+    var buys = ROWS.filter(function(r){ return isDeal(r) && inM(dealDate(r)); }).sort(function(a, b){ return dealDate(a) < dealDate(b) ? 1 : -1; });
+    var sells = (BK.products || []).filter(function(p){ return p.status === 'sold' && p.sold_at && inM(p.sold_at); }).sort(function(a, b){ return a.sold_at < b.sold_at ? 1 : -1; });
+    var sB = buys.reduce(function(t, r){ return t + dealAmt(r); }, 0);
+    var sS = sells.reduce(function(t, p){ return t + Number(p.price || 0); }, 0), sF = sells.reduce(function(t, p){ return t + Number(p.fee || 0); }, 0);
+    var sC = sells.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0), sP = sS - sF - sC;
+    var sIn = sells.reduce(function(t, p){ return t + Number(p.paid_in || 0); }, 0);
+    var months = {}; ROWS.forEach(function(r){ if(isDeal(r)) months[ym(dealDate(r))] = 1; }); (BK.products || []).forEach(function(p){ if(p.sold_at) months[ym(p.sold_at)] = 1; }); months[ym(new Date())] = 1;
+    var ML = Object.keys(months).sort().reverse();
+    var monthly = ML.slice(0, 12).map(function(k){
+      var b = ROWS.filter(function(r){ return isDeal(r) && ym(dealDate(r)) === k; }).reduce(function(t, r){ return t + dealAmt(r); }, 0);
+      var S = (BK.products || []).filter(function(p){ return p.status === 'sold' && ym(p.sold_at) === k; });
+      var s = S.reduce(function(t, p){ return t + Number(p.price || 0); }, 0), f = S.reduce(function(t, p){ return t + Number(p.fee || 0); }, 0), c = S.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0);
+      return '<tr><td>' + k.replace('-', '年') + '月</td><td class="num">' + yen(b) + '</td><td class="num">' + yen(s) + '</td><td class="num">' + yen(f) + '</td><td class="num">' + yen(c) + '</td><td class="num' + (s - f - c < 0 ? ' minus' : '') + '">' + yen(s - f - c) + '</td></tr>';
+    }).join('');
+    return '<div class="bk-head"><h2>売上台帳</h2><div class="bk-tools"><select data-bf="month">' + ML.map(function(k){ return '<option value="' + k + '"' + (k === m ? ' selected' : '') + '>' + k.replace('-', '年') + '月</option>'; }).join('') + '<option value="all"' + (all ? ' selected' : '') + '>全期間</option></select><button class="btn ghost small" data-bk="ledger-csv">表を書き出す</button></div></div>'
+      + '<div class="kpis"><div><small>買取（仕入）</small><b>' + yen(sB) + '</b><small>' + buys.length + '件</small></div><div><small>卸への売上</small><b>' + yen(sS) + '</b><small>' + sells.length + '点・手数料 ' + yen(sF) + '</small></div><div><small>粗利（売上－手数料－買取価格）</small><b class="' + (sP < 0 ? 'minus' : '') + '">' + yen(sP) + '</b><small>入金済み ' + yen(sIn) + '</small></div></div>'
+      + '<h3>買取（仕入）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>受付番号</th><th>売主</th><th>方法</th><th>状態</th><th>契約</th><th class="num">買取金額</th></tr></thead><tbody>'
+      + (buys.length ? buys.map(function(r){ return '<tr class="click" data-bk="go-case" data-id="' + r.id + '"><td>' + ymd(dealDate(r)) + '</td><td>' + esc(r.receipt_no) + '</td><td>' + esc(r.name) + '</td><td>' + KIND[r.kind] + '</td><td>' + ST[r.status] + '</td><td>' + (r.kind === 'takuhai' ? (r.contract_at ? '電子契約済' : '<span class="tag new">未</span>') : '店頭・対面') + '</td><td class="num">' + yen(dealAmt(r)) + '</td></tr>'; }).join('') + '<tr class="sum"><td colspan="6">合計</td><td class="num">' + yen(sB) + '</td></tr>' : '<tr><td colspan="7" class="empty">この期間の買取はありません</td></tr>')
+      + '</tbody></table></div>'
+      + '<h3>卸への販売</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>売却日</th><th>卸先</th><th>品名</th><th class="num">買取価格</th><th class="num">売却価格</th><th class="num">手数料</th><th class="num">粗利</th><th>入金</th></tr></thead><tbody>'
+      + (sells.length ? sells.map(function(p){ var pr = profit(p); return '<tr><td>' + ymd(p.sold_at) + '</td><td>' + esc(p.buyer || '') + '</td><td>' + esc(p.name) + '</td><td class="num">' + yen(p.cost) + '</td><td class="num">' + yen(p.price) + '</td><td class="num">' + yen(p.fee) + '</td><td class="num' + (pr < 0 ? ' minus' : '') + '">' + yen(pr) + '</td><td>' + (p.paid_in_at ? ymd(p.paid_in_at) : '<span class="tag new">未入金</span>') + '</td></tr>'; }).join('')
+        + '<tr class="sum"><td colspan="3">合計</td><td class="num">' + yen(sC) + '</td><td class="num">' + yen(sS) + '</td><td class="num">' + yen(sF) + '</td><td class="num">' + yen(sP) + '</td><td></td></tr>' : '<tr><td colspan="8" class="empty">この期間の売却はありません</td></tr>')
+      + '</tbody></table></div>'
+      + '<h3>月ごとの集計（直近12か月）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>月</th><th class="num">買取（仕入）</th><th class="num">卸への売上</th><th class="num">手数料</th><th class="num">売れた物の買取価格</th><th class="num">粗利</th></tr></thead><tbody>' + monthly + '</tbody></table></div>'
+      + '<p class="hint">買取は「成約・振込済・完了」のお申込み（日付は振込日、なければ同意日）。売上は商品管理表で「売却済」にした商品（日付は売却日）です。</p>';
+  }
+
+  // ── 台帳の操作 ──
+  $('vBook').addEventListener('input', function(ev){
+    var f = ev.target.dataset.bf; if(!f) return;
+    BF[f] = ev.target.value; var pos = ev.target.selectionStart;
+    drawBook(); var el = $('vBook').querySelector('[data-bf="' + f + '"]'); if(el && el.type === 'search'){ el.focus(); try{ el.setSelectionRange(pos, pos); }catch(e){} }
+  });
+  $('vBook').addEventListener('change', function(ev){
+    var t = ev.target;
+    if(t.dataset.bf && t.tagName === 'SELECT'){ BF[t.dataset.bf] = t.value; BOPEN = null; drawBook(); }
+    if(t.dataset.sel){ BSEL[t.dataset.sel] = t.checked; drawBook(); }
+    if(t.dataset.bk === 'sel-all'){ $('vBook').querySelectorAll('[data-sel]').forEach(function(c){ BSEL[c.dataset.sel] = t.checked; }); drawBook(); }
+  });
+  $('vBook').addEventListener('click', async function(ev){
+    var b = ev.target.closest('[data-bk]'); if(!b || b.tagName === 'INPUT' && b.type === 'checkbox') return;
+    var act = b.dataset.bk, V = $('vBook'), who = actor();
+    var q = function(sel){ var e = V.querySelector(sel); return e ? (e.type === 'checkbox' ? e.checked : e.value.trim()) : ''; };
+    try{
+      if(act === 'cust-open' || act === 'prod-open' || act === 'buyer-open'){ var id = b.dataset.key || b.dataset.id; BOPEN = BOPEN === id ? null : id; drawBook(); return; }
+      if(act === 'buyer-new'){ BOPEN = 'new'; drawBook(); return; }
+      if(act === 'close'){ BOPEN = null; drawBook(); return; }
+      if(act === 'go-case'){ await showView('cases'); TAB = 'all'; drawList(); open(b.dataset.id); window.scrollTo(0, 0); return; }
+      if(act === 'cust-csv'){ var C = customers(); csvDl('顧客一覧', ['お名前', 'ふりがな', '電話', 'メール', '住所', '区分', 'お申込み', '成約', '買取合計', '初回', '最終', '紹介元', 'メモ'], C.map(function(c){ return [c.name, c.kana, c.phone, c.email, c.address, c.rank, c.n, c.deals, c.total, ymd(c.first), ymd(c.last), Object.keys(c.refs).join('、'), c.note]; })); return; }
+      if(act === 'prod-csv'){ csvDl('商品管理表', ['商品ID', '登録日', '受付番号', '売主', '品名', '品目', '点数', '買取価格', '状態', '卸先', '出品日', '売却日', '売却価格', '手数料', '粗利', '入金額', '入金日', 'メモ'], (BK.products || []).map(function(p){ return [p.id, ymd(p.created_at), p.receipt_no, p.seller, p.name, p.category, p.qty, p.cost, BK.productSt[p.status], p.buyer, ymd(p.listed_at), ymd(p.sold_at), p.price, p.fee, profit(p), p.paid_in, ymd(p.paid_in_at), p.memo]; })); return; }
+      if(act === 'buyer-csv'){ csvDl('卸先管理帳', ['卸先ID', '名称', '種別', '担当者', '電話', 'メール', '住所', '取扱品目', '手数料率', '支払条件', '古物商許可番号', '取引中', 'メモ'], (BK.buyers || []).map(function(x){ return [x.id, x.name, x.type, x.person, x.tel, x.email, x.address, x.items, x.fee_rate, x.terms, x.license, x.active === false ? '休止' : '取引中', x.memo]; })); return; }
+      if(act === 'ledger-csv'){
+        var m = BF.month || ym(new Date()), all = m === 'all', inM = function(s){ return all || ym(s) === m; };
+        var rows = ROWS.filter(function(r){ return isDeal(r) && inM(dealDate(r)); }).map(function(r){ return ['買取（仕入）', ymd(dealDate(r)), r.receipt_no, r.name, KIND[r.kind], '', dealAmt(r), '', '', '']; })
+          .concat((BK.products || []).filter(function(p){ return p.status === 'sold' && inM(p.sold_at); }).map(function(p){ return ['卸への販売', ymd(p.sold_at), p.receipt_no, p.name, p.buyer, p.cost, '', p.price, p.fee, profit(p)]; }));
+        csvDl('売上台帳_' + (all ? '全期間' : m), ['区分', '日付', '受付番号', '売主／品名', '方法／卸先', '買取価格（原価）', '買取金額', '売却価格', '手数料', '粗利'], rows); return;
+      }
+      b.disabled = true;
+      if(act === 'cust-save'){
+        await call('staffCustomerSave', { key: b.dataset.key, name: b.dataset.name, rank: q('[data-cf=rank]'), note: q('[data-cf=note]') });
+        say('区分・メモを保存しました', 'ok');
+      }
+      if(act === 'prod-save'){
+        var box = V.querySelector('[data-prod-edit="' + b.dataset.id + '"]'), patch = {};
+        box.querySelectorAll('[data-pe]').forEach(function(e){ var k = e.dataset.pe, val = e.value.trim(); patch[k] = /_at$/.test(k) ? (val ? new Date(val + 'T12:00:00+09:00').toISOString() : '') : val; });
+        if(patch.status === 'sold' && (patch.price === '' || !patch.sold_at)) throw new Error('売却済みにするときは、売却日と売却価格を入れてください');
+        if((patch.status === 'listed' || patch.status === 'sold') && !patch.buyer_id) throw new Error('卸先を選んでください');
+        await call('staffProductSave', { id: b.dataset.id, patch: patch }); say('商品を保存しました', 'ok');
+      }
+      if(act === 'bulk-list' || act === 'bulk-sold' || act === 'bulk-stock'){
+        var ids = Object.keys(BSEL).filter(function(k){ return BSEL[k]; }); if(!ids.length) throw new Error('商品にチェックを入れてください');
+        var buyer = q('[data-bb=buyer]'), day = q('[data-bb=date]'), iso = day ? new Date(day + 'T12:00:00+09:00').toISOString() : new Date().toISOString();
+        if(act === 'bulk-stock'){ await call('staffProductSave', { ids: ids, patch: { status: 'stock', buyer_id: '', buyer: '', listed_at: '', sold_at: '', price: '', fee: '' } }); }
+        if(act === 'bulk-list'){ if(!buyer) throw new Error('卸先を選んでください'); await call('staffProductSave', { ids: ids, patch: { status: 'listed', buyer_id: buyer, listed_at: iso } }); }
+        if(act === 'bulk-sold'){
+          var total = Number(q('[data-bb=total]')), fee = Number(q('[data-bb=fee]') || 0);
+          if(!buyer) throw new Error('卸先を選んでください'); if(!(total >= 0) || q('[data-bb=total]') === '') throw new Error('売却額の合計を入れてください');
+          var P = (BK.products || []).filter(function(p){ return ids.indexOf(p.id) >= 0; });
+          var base = P.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0), restP = total, restF = fee;
+          if(!confirm(P.length + '点を ' + yen(total) + '（手数料 ' + yen(fee) + '）で売却したと記録します。よろしいですか？')) throw null;
+          for(var i = 0; i < P.length; i++){
+            var w = base ? Number(P[i].cost || 0) / base : 1 / P.length, last = i === P.length - 1;
+            var pr = last ? restP : Math.round(total * w), fe = last ? restF : Math.round(fee * w); restP -= pr; restF -= fe;
+            await call('staffProductSave', { id: P[i].id, patch: { status: 'sold', buyer_id: buyer, sold_at: iso, price: pr, fee: fe, listed_at: P[i].listed_at || iso } });
+          }
+        }
+        BSEL = {}; say('記録しました', 'ok');
+      }
+      if(act === 'prod-import'){
+        var pend = ROWS.filter(function(r){ return Array.isArray(r.lines) && r.lines.length && (r.status === 'paid' || r.status === 'done' || (r.status === 'accepted' && (r.kind === 'shop' || r.kind === 'visit'))) && !(BK.products || []).some(function(p){ return p.app_id === r.id; }); });
+        var n = 0; for(var j = 0; j < pend.length; j++){ var rs = await call('staffProductsFromApp', { id: pend[j].id, actor: who }); n += rs.added; }
+        say(n + '点を商品管理表に取り込みました', 'ok');
+      }
+      if(act === 'prod-add'){
+        var item = {}; V.querySelectorAll('[data-pa]').forEach(function(e){ item[e.dataset.pa] = e.value.trim(); });
+        await call('staffProductAdd', { item: item }); say('商品を追加しました', 'ok');
+      }
+      if(act === 'buyer-save'){
+        var fbox = V.querySelector('[data-buyer-form="' + (b.dataset.id || '') + '"]'), x = { id: b.dataset.id || '' };
+        fbox.querySelectorAll('[data-be]').forEach(function(e){ x[e.dataset.be] = e.type === 'checkbox' ? e.checked : e.value.trim(); });
+        await call('staffBuyerSave', { buyer: x }); BOPEN = null; say('卸先を保存しました', 'ok');
+      }
+      await loadBooks(); drawBook();
+    }catch(e){ if(e) say(e.message); b.disabled = false; }
+  });
 
   (async function(){ if(API.configured && SESS){ try{ await enter(); }catch(e){ SS.set(null); SESS = null; } } if(!API.configured) $('loginMsg').innerHTML = '<p class="msg warn">受付システムが未接続です（config.js を設定してください）</p>'; })();
 })();
