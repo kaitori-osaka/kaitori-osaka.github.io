@@ -20,6 +20,12 @@
   try{ if(REF) sessionStorage.setItem('kd-ref', REF); else REF = sessionStorage.getItem('kd-ref') || ''; }catch(e){}
   var REFNAME = (window.REF_NAMES || {})[REF] || '';
   if(REFNAME){ var rb = document.getElementById('refBadge'); if(rb){ rb.hidden = false; document.getElementById('refName').textContent = REFNAME; } }
+  // 紹介元によっては受け付けない買取方法（店頭・出張）があるので、選択肢から外す
+  ((window.REF_EXCLUDE || {})[REF] || []).forEach(function(v){
+    var x = f.querySelector('input[name=kind][value="' + v + '"]'); if(!x) return;
+    x.checked = false; x.disabled = true; var lb = x.closest('label'); if(lb) lb.hidden = true;
+    if(q === v) q = '';
+  });
   if(q){ var r0 = f.querySelector('input[name=kind][value="' + q + '"]'); if(r0) r0.checked = true; }
   // 専用プランのある紹介元（KIYOMICHI など）：宅配買取のみ、A／B を選ぶ
   var PLANMODE = !!(window.REF_PLANS || {})[REF];

@@ -314,3 +314,4 @@ p{margin:0}
 .way .wpic{display:block;margin:-20px -20px 16px;aspect-ratio:16/10;overflow:hidden;border-radius:calc(var(--r) - 2px) calc(var(--r) - 2px) 0 0;background:#f4f4f4}
 .way .wpic img{width:100%;height:100%;object-fit:cover;display:block}
 .page-photo{display:block;width:100%;height:auto;border-radius:var(--r);margin:0 0 20px}
+@media (min-width:1000px){.ways.n2{grid-template-columns:repeat(2,1fr)}.ways.n3{grid-template-columns:repeat(3,1fr)}}
