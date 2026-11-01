@@ -198,8 +198,8 @@
     if(!r.plan) h += '<div class="box"><h3>' + (isRange ? '概算金額の提示' : '査定金額の提示') + '</h3><div class="inline">'
       + (isRange
         ? '<label class="f">下限（円）<br><input type="number" min="0" step="100" data-f="estimate_low" value="' + (r.estimate_low == null ? '' : r.estimate_low) + '"></label><label class="f">上限（円）<br><input type="number" min="0" step="100" data-f="estimate_high" value="' + (r.estimate_high == null ? '' : r.estimate_high) + '"></label>'
-        : '<label class="f">金額（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label>')
-      + '</div><div class="f" style="margin-top:8px"><label>お客様へのひとこと（金額の根拠など）</label><textarea data-f="estimate_note" style="min-height:70px">' + esc(r.estimate_note || '') + '</textarea></div>'
+        : '<label class="f">金額（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label>' + (r.ref && (r.kind === 'shop' || r.kind === 'visit') ? '<p class="hint" data-revout style="flex-basis:100%">提携先ご紹介（30%上乗せ）：買取価格を入れると、基準値（÷1.3）をここに表示します</p>' : ''))
+      + '</div><div class="f" style="margin-top:8px"><label>お客様へのひとこと（金額の根拠など）</label><textarea data-f="estimate_note" style="min-height:70px">' + esc(r.estimate_note || '') + '</textarea></div>' + '<button class="btn ghost small" data-act="ai-draft" data-target="estimate_note" data-purpose="estimate_note" style="margin-top:6px">AIで文面を作る</button><div class="aiok" data-aiok="estimate_note" hidden><p class="hint">AIの下書きです。金額や内訳を確かめ、必要なら直してから使ってください。</p></div>'
       + '<button class="btn primary small" data-act="estimate"' + (r.email ? '' : ' disabled') + '>金額をお客様に知らせる</button>'
       + (r.email ? '' : '<p class="hint">メールアドレスがないため、金額はお電話でお伝えください。</p>')
       + (r.answer ? '<p style="margin-top:8px"><b>お客様の回答：' + (r.answer === 'accept' ? '同意' : '見送り') + '</b>（' + dt(r.answer_at) + '）</p>' : '')
@@ -209,8 +209,11 @@
     // 連絡
     h += '<div class="box"><h3>お客様との連絡</h3><div class="thread">'
       + (msgs.length ? msgs.map(function(m){ return '<div class="bubble ' + (m.sender === 'staff' ? 'customer' : m.sender === 'customer' ? 'staff' : 'system') + '">' + esc(m.body) + '<time>' + (m.sender === 'staff' ? '店舗' + (m.author ? '（' + esc(m.author) + '）' : '') : m.sender === 'customer' ? 'お客様' : '') + '・' + dt(m.created_at) + '</time></div>'; }).join('') : '<p class="hint">まだやり取りはありません。</p>')
-      + '</div><div class="f" style="margin-top:10px"><textarea data-f="reply" placeholder="お客様へのご連絡（メールでも届きます）"></textarea></div>'
-      + '<button class="btn blue small" data-act="reply"' + (r.email ? '' : ' disabled') + '>送る</button>'
+      + '</div><div class="aibox" style="margin-top:10px"><div class="f"><label>AIへの指示（任意）</label><input type="text" data-f="aihint" maxlength="200" placeholder="例：来店日時を11月5日14時で確定したと伝える"></div>'
+      + '<button class="btn ghost small" data-act="ai-draft" data-target="reply" data-purpose="reply">AIで下書きを作る</button></div>'
+      + '<div class="f" style="margin-top:10px"><textarea data-f="reply" placeholder="お客様へのご連絡（メールでも届きます）"></textarea></div>'
+      + '<div class="aiok" data-aiok="reply" hidden><p class="hint">AIの下書きです。内容（特に金額・日時）を確かめ、必要なら直してから送ってください。</p><label class="check"><input type="checkbox" data-f="aiok_reply"><span>内容を確認しました（承認）</span></label></div>'
+      + '<button class="btn blue small" data-act="reply"' + (r.email ? '' : ' disabled') + '>確認して送る</button>'
       + '<button class="btn ghost small" data-act="done" style="margin-left:6px">完了にする</button></div>';
 
     h += '<div class="box"><h3>履歴</h3><div class="log">' + evs.map(function(x){ return dt(x.at) + '　' + esc(x.actor || '') + '　' + esc(x.action); }).join('<br>') + '</div></div>';
@@ -236,7 +239,7 @@
       h += '<div class="step-act"><b>仮査定の提示</b>（上乗せ後の目安を担当者が記入。貴金属・商品券は上乗せ対象外）<div class="inline">'
         + '<label class="f">下限（円）<br><input type="number" min="0" step="100" data-f="estimate_low" value="' + (r.estimate_low == null ? '' : r.estimate_low) + '"></label>'
         + '<label class="f">上限（円）<br><input type="number" min="0" step="100" data-f="estimate_high" value="' + (r.estimate_high == null ? '' : r.estimate_high) + '"></label></div>'
-        + '<div class="f"><label>お客様へのひとこと</label><textarea data-f="estimate_note" style="min-height:60px">' + esc(r.estimate_note || '') + '</textarea></div>'
+        + '<div class="f"><label>お客様へのひとこと</label><textarea data-f="estimate_note" style="min-height:60px">' + esc(r.estimate_note || '') + '</textarea></div>' + '<button class="btn ghost small" data-act="ai-draft" data-target="estimate_note" data-purpose="estimate_note" style="margin-top:6px">AIで文面を作る</button><div class="aiok" data-aiok="estimate_note" hidden><p class="hint">AIの下書きです。金額や内訳を確かめ、必要なら直してから使ってください。</p></div>'
         + '<button class="btn primary small" data-act="pre-estimate">仮査定をお客様に知らせる</button></div>';
     }
     // 2. 発送待ち
@@ -257,12 +260,12 @@
         h += '<div class="step-act"><b>本査定（買取価格は担当者が記入）</b><div class="inline">'
           + '<label class="f">通常の査定額・基準値（円）<br><input type="number" min="0" step="1" data-f="base_amount" value="' + (r.base_amount == null ? '' : r.base_amount) + '"></label>'
           + '<label class="f">買取価格（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label></div>'
-          + '<p class="hint">通常の査定額は基準値として記録します（お客様にも参考として表示）。買取価格は30%上乗せを目安に記入してください。貴金属・商品券は上乗せの対象外です。</p>';
+          + '<p class="hint">買取価格を入れると、基準値（通常の査定額）が自動で逆算されます（買取価格 ÷ 1.3、1円未満は四捨五入）。貴金属・商品券を含む場合は、その分を除いて基準値を手で直してください。基準値はお客様にも参考として表示されます。</p><p class="hint" data-revout></p>';
       } else {
         h += '<div class="step-act"><b>本査定（おまとめ価格）</b><div class="inline">'
           + '<label class="f">おまとめ価格（円）<br><input type="number" min="0" step="1" data-f="final_amount" value="' + (r.final_amount == null ? '' : r.final_amount) + '"></label></div>';
       }
-      h += '<div class="f"><label>お客様へのひとこと（内訳など）</label><textarea data-f="estimate_note" style="min-height:70px">' + esc(r.estimate_note || (r.plan === 'matome' ? '価格がつかなかったお品物も、処分費などは一切かからず、おまとめ買取として当店で処分いたします。' : '')) + '</textarea></div>'
+      h += '<div class="f"><label>お客様へのひとこと（内訳など）</label><textarea data-f="estimate_note" style="min-height:70px">' + esc(r.estimate_note || (r.plan === 'matome' ? '価格がつかなかったお品物も、処分費などは一切かからず、おまとめ買取として当店で処分いたします。' : '')) + '</textarea></div>' + '<button class="btn ghost small" data-act="ai-draft" data-target="estimate_note" data-purpose="estimate_note" style="margin-top:6px">AIで文面を作る</button><div class="aiok" data-aiok="estimate_note" hidden><p class="hint">AIの下書きです。金額や内訳を確かめ、必要なら直してから使ってください。</p></div>'
         + '<button class="btn primary small" data-act="p-estimate">' + (s === 'appraised' ? '金額を出し直す' : '金額をお客様に知らせる') + '</button>'
         + (s === 'appraised' ? '<p style="margin-top:8px">お客様の回答待ち（' + days(r.estimate_at) + ' 日）　<button class="btn ghost small" data-act="p-accept">電話で同意を受けた</button> <button class="btn ghost small" data-act="p-decline">電話で見送りを受けた</button></p>' : '')
         + '</div>';
@@ -299,6 +302,20 @@
     var d = $('detail'), g = function(f){ var el = d.querySelector('[data-f=' + f + ']'); return el ? el.value : ''; };
     var who = actor(), act = b.dataset.act;
     b.disabled = true;
+    // AIで下書き：本文欄に入れるだけ（送信はしない）。担当者が確認・修正・承認してから送る
+    if(act === 'ai-draft'){
+      var tgt = d.querySelector('[data-f=' + b.dataset.target + ']'), lb = b.textContent;
+      var extra = ['final_amount', 'estimate_low', 'estimate_high', 'base_amount'].map(function(k){ var v = g(k); return v ? ({ final_amount: '金額', estimate_low: '概算下限', estimate_high: '概算上限', base_amount: '通常の査定額' })[k] + '：' + Number(v).toLocaleString('ja-JP') + '円' : ''; }).filter(Boolean).join('／');
+      try{
+        b.textContent = 'AIが下書きを作っています…';
+        var dr = await call('staffDraft', { id: r.id, purpose: b.dataset.purpose, hint: g('aihint'), extra: extra, actor: who });
+        if(tgt){ tgt.value = dr.text; tgt.dataset.ai = dr.text; tgt.focus(); }
+        var ok = d.querySelector('[data-aiok=' + b.dataset.target + ']'); if(ok) ok.hidden = false;
+        var cb = d.querySelector('[data-f=aiok_' + b.dataset.target + ']'); if(cb) cb.checked = false;
+        say('AIの下書きを入れました。確認・修正してから送ってください', 'ok');
+      }catch(e){ say(e.message); }
+      b.textContent = lb; b.disabled = false; return;
+    }
     try{
       if(act === 'save-state'){
         await call('staffUpdate', { id: r.id, patch: { assignee: g('assignee') || null, status: g('status') } });
@@ -386,6 +403,11 @@
       }
       if(act === 'reply'){
         var body = g('reply').trim(); if(!body) throw new Error('本文を入れてください');
+        var ta = d.querySelector('[data-f=reply]'), aiTxt = ta && ta.dataset.ai;
+        if(aiTxt){
+          var cb2 = d.querySelector('[data-f=aiok_reply]'); if(!cb2 || !cb2.checked) throw new Error('AIの下書きを使うときは、内容を確認して「内容を確認しました」にチェックしてください');
+          await log(r.id, 'AIの下書きを確認・承認して送信', { edited: aiTxt.trim() !== body });
+        }
         await call('staffNotify', { id: r.id, kind: 'message', body: body, actor: who });
         if(r.status === 'new') await call('staffUpdate', { id: r.id, patch: { status: 'contacted', assignee: r.assignee || who } });
         say('お客様に送りました', 'ok');
@@ -397,6 +419,17 @@
       }
       await refresh(); open(r.id);
     }catch(e){ if(e) say(e.message); b.disabled = false; }
+  });
+  // 買取価格 → 基準値（通常の査定額）の逆算（30%上乗せ：買取価格 ÷ 1.3）
+  $('detail').addEventListener('input', function(ev){
+    var t = ev.target;
+    if(t.dataset.f === 'base_amount'){ delete t.dataset.auto; return; }   // 手で直したら自動上書きしない
+    if(t.dataset.f !== 'final_amount') return;
+    var v = Number(t.value), base = v > 0 ? Math.round(v / 1.3) : 0;
+    var bf = $('detail').querySelector('[data-f=base_amount]');
+    if(bf && (bf.value === '' || bf.dataset.auto)){ bf.value = base || ''; bf.dataset.auto = '1'; }
+    var out = $('detail').querySelector('[data-revout]');
+    if(out && base) out.textContent = '基準値（通常の査定額）の目安：' + base.toLocaleString('ja-JP') + '円（' + v.toLocaleString('ja-JP') + '円 ÷ 1.3）／上乗せ分：' + (v - base).toLocaleString('ja-JP') + '円';
   });
   async function log(id, action, detail){ try{ await call('staffLog', { id: id, actor: actor(), action: action, detail: detail || null }); }catch(e){} }
   function fmtJp(iso){ var d = new Date(iso); return d.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Tokyo' }) + ' ' + d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }); }
