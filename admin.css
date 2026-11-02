@@ -136,3 +136,11 @@ body.adm{padding-bottom:0;background:#F6F8FC}
 .pic-act{display:flex;gap:4px}
 .pic-act button{flex:1;font:inherit;font-size:.78rem;padding:4px 0;border-radius:6px;border:1px solid var(--line);background:#fff;cursor:pointer}
 .pic-act button.ln{background:#06C755;border-color:#06C755;color:#fff;font-weight:700}
+.rp-chk{list-style:none;padding:0;margin:8px 0;display:grid;gap:2px;font-size:.92rem}
+.rp-chk .ok{color:#2e8b57}.rp-chk .ng{color:#d0021b;font-weight:700}
+.rp-deal{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;background:#fff}
+.rp-deal .inline{align-items:center;gap:8px}
+.rp input,.rp select{font:inherit;padding:5px 7px;border:1px solid var(--line);border-radius:6px;max-width:100%}
+#appMsg .msg{position:relative;padding-right:40px}
+.msg-x{position:absolute;top:6px;right:8px;border:0;background:transparent;font-size:1.3rem;line-height:1;cursor:pointer;color:inherit}
+#appMsg{position:sticky;top:70px;z-index:35}
