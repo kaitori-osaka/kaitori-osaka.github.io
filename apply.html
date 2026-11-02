@@ -60,10 +60,22 @@
 <div class="f" data-show="visit takuhai"><label for="quantity">おおよその量<span class="opt">任意</span></label><input type="text" id="quantity" name="quantity" maxlength="100" placeholder="例：段ボール2箱くらい"></div>
 <div class="f" data-show="takuhai" id="kitField"><label for="kitBoxes">宅配キットの箱数</label><select id="kitBoxes" name="kitBoxes"><option value="0">キットは不要（手持ちの箱で送る）</option><option value="1" selected>1箱</option><option value="2">2箱</option><option value="3">3箱</option></select></div>
 <div class="f" data-show="photo shop visit takuhai" id="photoField"><span class="lb">写真<span class="req" data-show="photo">必須</span><span class="opt" data-show="shop visit takuhai">任意</span></span>
+<div class="ph-help">
+<p class="ph-h">写真の送り方（むずかしくありません）</p>
+<ol class="ph-steps">
+<li><b>下の赤いボタン「＋ お品物を1点追加」</b>を押します</li>
+<li>スマホなら<b>「写真を撮る」</b>を選ぶとカメラが開きます。すでに撮った写真を使うときは<b>「写真ライブラリ」</b>を選びます</li>
+<li>お品物の<b>全体</b>を1枚撮ります。続けて<b>「この品に写真を足す」</b>で、刻印・ロゴ・傷・付属品も撮れます（1点につき6枚まで）</li>
+<li>品名がわかれば書いてください（わからなければ空欄で大丈夫です）</li>
+<li>次のお品物も、もう一度「＋ お品物を1点追加」で同じようにします</li>
+</ol>
+<p class="ph-tips"><b>きれいに撮るコツ</b>：明るい場所で／1枚に1点／刻印やブランド名は近づいて</p>
+</div>
 <input type="file" id="photos" accept="image/*" multiple hidden>
-<button type="button" class="btn ghost small" id="pickPhotos"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg> 写真を選ぶ・撮る</button>
-<p class="hint">6枚まで。刻印・ブランド名・傷の部分の写真があると、金額がより正確になります</p>
-<div class="thumbs" id="thumbs"></div></div>
+<div class="ph-btns"><button type="button" class="btn primary" id="addItem"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg> ＋ お品物を1点追加して写真を撮る</button><button type="button" class="btn ghost small" id="pickPhotos">写真をまとめて選ぶ（たくさんある方）</button></div>
+<div class="ph-items" id="phItems"></div>
+<div class="ph-bulk" id="phBulk" hidden><p class="ph-bh">まとめて選んだ写真<small>（お品物ごとに分けなくても大丈夫です）</small></p><div class="thumbs" id="thumbs"></div></div>
+<p class="hint" id="phCount">写真は全部で40枚まで送れます</p></div>
 </fieldset>
 
 <fieldset class="fs" id="bankBox" hidden><legend>お振込先</legend>

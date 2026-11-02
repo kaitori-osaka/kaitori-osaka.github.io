@@ -164,14 +164,43 @@
       else cell.insertAdjacentHTML('beforeend', '<button type="button" class="limg-ref" data-act="limg-view" data-src="画像' + (i + 1) + '" title="この画像を大きく見る">' + html + '</button>');
     });
   }
+  // ── 写真の保存・LINEで送る（鑑定部へ）。スマホやパソコンの「共有」からLINEを選ぶ。共有できない端末では保存する ──
+  var PICS = {};
+  function toFile(d, name){ var m = /^data:([^;]+);base64,(.*)$/.exec(d), bin = atob(m[2]), a = new Uint8Array(bin.length); for(var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new File([a], name, { type: m[1] }); }
+  function picName(r, f, i){ var ext = (/^data:image\/(\w+)/.exec(f.data) || [])[1] || 'jpg'; return r.receipt_no + '_' + String(f.name || ('写真' + (i + 1))).replace(/\.[a-z]+$/, '') + '.' + ext.replace('jpeg', 'jpg'); }
+  function dlPics(r, list){ list.forEach(function(f, i){ setTimeout(function(){ var nm = picName(r, f, i), u = URL.createObjectURL(toFile(f.data, nm)), a = document.createElement('a'); a.href = u; a.download = nm; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(u); }, 5000); }, i * 300); }); }
+  async function linePics(r, list){
+    var text = '【鑑定依頼】' + r.receipt_no + '　' + r.name + ' 様\n' + KIND[r.kind] + (r.items && r.items.length ? '／' + r.items.join('、') : '') + (r.item_note ? '\n' + String(r.item_note).slice(0, 300) : '') + '\n写真 ' + list.length + '枚';
+    try{ await navigator.clipboard.writeText(text); }catch(e){}
+    var files = list.map(function(f, i){ return toFile(f.data, picName(r, f, i)); });
+    if(navigator.canShare && navigator.canShare({ files: files })){
+      try{ await navigator.share({ files: files, text: text, title: '鑑定依頼 ' + r.receipt_no }); say('共有の画面でLINEを選び、鑑定部に送ってください（説明文はコピー済みです。LINEで貼り付けできます）', 'ok'); }
+      catch(e){ if(e && e.name !== 'AbortError') say('送れませんでした：' + e.message); }
+    } else {
+      dlPics(r, list);
+      say('この端末ではLINEへ直接送れないため、写真を保存しました。LINEで鑑定部に送ってください（説明文はコピー済みです）', 'ok');
+    }
+  }
+  $('detail').addEventListener('click', function(ev){
+    var b = ev.target.closest('[data-pa]'); if(!b) return;
+    ev.stopPropagation();
+    var r = ROWS.filter(function(x){ return x.id === CUR; })[0]; if(!r) return;
+    var src = b.dataset.b === 'shots' ? LIMGS.map(function(u, i){ return { name: LNAMES[i] || ('画像' + (i + 1)), data: u }; }) : (PICS[b.dataset.b] || []);
+    var one = b.dataset.i != null ? [src[Number(b.dataset.i)]] : src;
+    if(!one.length || !one[0]) return;
+    if(/^dl/.test(b.dataset.pa)) dlPics(r, one); else linePics(r, one);
+  }, true);
   async function loadPics(bucket, folder, box){
     if(!box) return;
     try{
       box.innerHTML = '<span class="hint">写真を読み込んでいます…</span>';
       var files = await call('staffFiles', { id: folder, which: bucket });
       if(!files.length){ box.innerHTML = '<span class="hint">ありません</span>'; return; }
-      box.innerHTML = '';
-      files.forEach(function(f, i){ var img = document.createElement('img'); img.src = f.data; img.alt = '写真 ' + (i + 1); box.appendChild(img); });
+      PICS[bucket] = files;
+      var line = bucket !== 'idcopy';   // 身分証はLINEには送らない（保存だけ）
+      box.innerHTML = '<div class="pic-bar"><button type="button" class="btn ghost small" data-pa="dl-all" data-b="' + bucket + '">全部保存（' + files.length + '枚）</button>'
+        + (line ? '<button type="button" class="btn line small" data-pa="line-all" data-b="' + bucket + '">全部をLINEで送る</button>' : '') + '</div>'
+        + files.map(function(f, i){ return '<figure class="pic"><img src="' + f.data + '" alt="写真 ' + (i + 1) + '"><figcaption>' + esc(f.name.replace(/\.[a-z]+$/, '')) + '</figcaption><div class="pic-act"><button type="button" data-pa="dl" data-b="' + bucket + '" data-i="' + i + '">保存</button>' + (line ? '<button type="button" class="ln" data-pa="line" data-b="' + bucket + '" data-i="' + i + '">LINE</button>' : '') + '</div></figure>'; }).join('');
     }catch(e){ box.innerHTML = '<span class="hint">写真を読み込めませんでした：' + esc(e.message) + '</span>'; }
   }
 
@@ -213,7 +242,7 @@
     return '<div class="box lines-box pm-' + pm + (up ? ' has-up' : '') + '" id="linesBox" data-up="' + (up ? 1 : 0) + '"><h3>' + (r.kind === 'takuhai' ? '到着後の査定：画像を取り込んで、買取見込みのお品物の一覧を作る' : '査定：画像を取り込んで、買取見込みのお品物の一覧を作る') + '</h3><p class="hint">一覧と合計は、金額のお知らせ（メール・お申込み状況のページ）と買取契約書にそのまま載ります。</p>'
       + '<div class="aibox"><label class="btn ghost small">写真から選ぶ（複数可）<input type="file" accept="image/*" multiple data-lines-files hidden></label>'
       + '<label class="btn ghost small">カメラで撮る<input type="file" accept="image/*" capture="environment" data-lines-files hidden></label>'
-      + '<span class="hint" data-lines-count>画像：0枚（10枚まで。何回かに分けて足せます）</span><div class="lthumbs" data-lines-thumbs></div>'
+      + '<span class="hint" data-lines-count>画像：0枚（10枚まで。何回かに分けて足せます）</span><div class="lthumbs" data-lines-thumbs></div><div class="pic-bar" data-shot-bar hidden><button type="button" class="btn ghost small" data-pa="dl-all" data-b="shots">この画像を全部保存</button><button type="button" class="btn line small" data-pa="line-all" data-b="shots">この画像を全部LINEで送る</button></div>'
       + '<button class="btn ghost small" data-act="itemize">画像から商品を調べる</button>'
       + (r.photo_count ? '<button class="btn ghost small" data-act="itemize-cust">お客様の写真から調べる</button>' : '') + '</div>'
       + '<p class="hint">AIが商品名・ブランド・型番を調べて明細に入れます（下書き）。必ず確認・修正してください。金額は担当者が入れます。</p>'
@@ -288,6 +317,7 @@
   }
   function drawThumbs(over){
     var c = $('detail').querySelector('[data-lines-count]'), t = $('detail').querySelector('[data-lines-thumbs]');
+    var tb = $('detail').querySelector('[data-shot-bar]'); if(tb) tb.hidden = !LIMGS.length;
     if(c) c.textContent = '画像：' + LIMGS.length + '枚' + (over ? '（' + LMAX + '枚までです）' : LIMGS.length < LMAX ? '（' + LMAX + '枚まで。何回かに分けて足せます）' : '') + (LFILES.filter(Boolean).length ? '　うち保存済み ' + LFILES.filter(Boolean).length + '枚' : '');
     if(t) t.innerHTML = LIMGS.map(function(u, i){ return '<figure><button type="button" class="lth" data-act="limg-view" data-src="画像' + (i + 1) + '" title="大きく見る"><img src="' + u + '" alt="画像' + (i + 1) + '"><b>画像' + (i + 1) + '</b></button><figcaption>' + esc(LNAMES[i] || '') + '</figcaption><button type="button" class="del" data-act="limg-del" data-i="' + i + '" aria-label="画像' + (i + 1) + 'を外す">×</button></figure>'; }).join('');
   }

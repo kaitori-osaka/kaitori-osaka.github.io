@@ -1,9 +1,11 @@
 /* お申込みフォーム：方法の切替、写真の縮小と送信、受付番号の表示 */
 (function(){
-  var C = window.SHOP_CONFIG || {}, MAX = C.maxPhotos || 6;
+  var C = window.SHOP_CONFIG || {}, PER = 6, MAX = 40;   // 1点につき6枚、全部で40枚まで
   var f = document.getElementById('applyForm'); if(!f) return;
   var msg = document.getElementById('formMsg'), btn = document.getElementById('submitBtn');
-  var photos = [];   // data URL
+  var photos = [];   // まとめて選んだ写真（data URL）
+  var items = [];    // 1点ずつ：{ name, photos: [data URL] }
+  function allCount(){ return photos.length + items.reduce(function(t, x){ return t + x.photos.length; }, 0); }
   var bkf = document.getElementById('bkForm'); if(bkf && window.KD_BANK){ bkf.innerHTML = KD_BANK.form('ap', true); KD_BANK.sync(bkf); }
 
   function kind(){ var r = f.querySelector('input[name=kind]:checked'); return r ? r.value : ''; }
@@ -79,26 +81,42 @@
 
   // ── 今どこ・次に何をするか ──
   // 上から順に、まだ終わっていない最初の項目を「次にすること」として出す
+  function fld(n){ var el = f.elements[n]; return el && (el.length && !el.tagName ? el[0] : el); }
   function todo(){
     var k = kind(), em = val('email');
-    if(PLANMODE ? !plan() : !k) return [1, PLANMODE ? 'A（おまとめ）か B（30%高価買取）を選んでください' : 'ご希望の方法（店頭・出張・写真・宅配）を1つ選んでください', PLANMODE ? 'planBox' : 'kindBox'];
-    if(!val('name')) return [2, 'お名前を入力してください', 'fsCustomer'];
-    if(val('phone').replace(/[^0-9]/g, '').length < 10) return [2, '電話番号を入力してください', 'fsCustomer'];
-    if((k === 'photo' || k === 'takuhai') && !em) return [2, 'メールアドレスを入力してください（結果をお知らせします）', 'fsCustomer'];
-    if((k === 'visit' || k === 'takuhai') && !val('address')) return [2, 'ご住所を入力してください', 'fsCustomer'];
-    if((k === 'photo' || (PLANMODE && pre())) && photos.length === 0) return [3, '「写真を選ぶ・撮る」を押して、お品物の写真を選んでください', 'fsItems'];
-    if(!f.elements.adult.checked || !f.elements.consent.checked) return [4, '「18歳以上です」と「個人情報の取扱いに同意します」にチェックを入れてください', 'fsLast'];
-    return [4, 'いちばん下の赤いボタン「' + btn.textContent + '」を押してください', 'fsLast'];
+    if(PLANMODE ? !plan() : !k) return [1, PLANMODE ? 'A（おまとめ）か B（30%高価買取）を選んでください' : 'ご希望の方法（店頭・出張・写真・宅配）を1つ選んでください', PLANMODE ? 'planBox' : 'kindBox', document.querySelector(PLANMODE ? '#planBox .kinds' : '#kindBox .kinds')];
+    if(!val('name')) return [2, 'お名前を入力してください', 'fsCustomer', fld('name')];
+    if(val('phone').replace(/[^0-9]/g, '').length < 10) return [2, '電話番号を入力してください', 'fsCustomer', fld('phone')];
+    if((k === 'photo' || k === 'takuhai') && !em) return [2, 'メールアドレスを入力してください（結果をお知らせします）', 'fsCustomer', fld('email')];
+    if((k === 'visit' || k === 'takuhai') && !val('address')) return [2, 'ご住所を入力してください', 'fsCustomer', fld('address')];
+    if((k === 'photo' || (PLANMODE && pre())) && allCount() === 0) return [3, '「＋ お品物を1点追加して写真を撮る」を押して、写真を撮ってください', 'fsItems', document.getElementById('addItem')];
+    if(!f.elements.adult.checked) return [4, '「18歳以上です」にチェックを入れてください', 'fsLast', f.elements.adult];
+    if(!f.elements.consent.checked) return [4, '「個人情報の取扱いに同意します」にチェックを入れてください', 'fsLast', f.elements.consent];
+    return [4, 'いちばん下の赤いボタン「' + btn.textContent + '」を押してください', 'fsLast', btn];
   }
-  var G = document.getElementById('guide'), GN = document.getElementById('gNext'), lastSec = '';
+  // 必須の入力欄に印を付ける（まだ：うすい赤／入力済み：緑）。いま入力する欄は赤で囲む
+  function marks(target){
+    var k = kind(), need = [['name', !!val('name')], ['phone', val('phone').replace(/[^0-9]/g, '').length >= 10]];
+    if(k === 'photo' || k === 'takuhai') need.push(['email', !!val('email')]);
+    if(k === 'visit' || k === 'takuhai') need.push(['address', !!val('address')]);
+    need.push(['adult', f.elements.adult.checked], ['consent', f.elements.consent.checked]);
+    f.querySelectorAll('.f.need,.f.done-ok').forEach(function(x){ x.classList.remove('need', 'done-ok'); });
+    need.forEach(function(x){ var el = fld(x[0]), box = el && el.closest('.f'); if(box && !box.closest('[hidden]')) box.classList.add(x[1] ? 'done-ok' : 'need'); });
+    var pf = document.getElementById('photoField');
+    if(pf && (k === 'photo' || (PLANMODE && pre()))) pf.classList.add(allCount() ? 'done-ok' : 'need');
+    document.querySelectorAll('.gtarget').forEach(function(x){ x.classList.remove('gtarget'); });
+    var tg = target && (target.closest('.f') || target);
+    if(tg) tg.classList.add('gtarget');
+    return tg;
+  }
+  var G = document.getElementById('guide'), GN = document.getElementById('gNext'), lastSec = '', lastEl = null;
   function guide(doneAll){
     if(!G) return;
     var t = doneAll ? [5, '受付完了です。下の「次にすること」をご覧ください', ''] : todo();
     G.querySelectorAll('[data-g]').forEach(function(li){ var n = Number(li.dataset.g); li.classList.toggle('gok', n < t[0]); li.classList.toggle('gon', n === t[0]); });
     GN.textContent = t[1];
-    f.querySelectorAll('.fs.now').forEach(function(x){ x.classList.remove('now'); });
-    var sec = t[2] && document.getElementById(t[2]); if(sec && !doneAll) sec.classList.add('now');
-    lastSec = t[2];
+    lastSec = t[2]; lastEl = doneAll ? null : t[3];
+    marks(doneAll ? null : t[3]);
   }
   if(G){
     G.addEventListener('click', function(ev){
@@ -106,35 +124,67 @@
       var id = { 1: PLANMODE ? 'planBox' : 'kindBox', 2: 'fsCustomer', 3: 'fsItems', 4: 'fsLast' }[li.dataset.g];
       var el = id && document.getElementById(id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+    // 「次にすること」を押すと、その入力欄へ移動して入力できる状態にする
     GN.parentNode.style.cursor = 'pointer';
-    GN.parentNode.addEventListener('click', function(){ var el = lastSec && document.getElementById(lastSec); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    GN.parentNode.addEventListener('click', function(){
+      var el = lastEl || (lastSec && document.getElementById(lastSec)); if(!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if(/INPUT|TEXTAREA|SELECT/.test(el.tagName) && el.type !== 'checkbox') setTimeout(function(){ try{ el.focus({ preventScroll: true }); }catch(e){} }, 400);
+      var box = el.closest('.f') || el; box.classList.remove('gflash'); void box.offsetWidth; box.classList.add('gflash');
+    });
   }
   guide();
   // 日付は今日以降
   var today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   f.querySelectorAll('input[type=date]').forEach(function(d){ d.min = today; });
 
-  // ── 写真 ──
-  var input = document.getElementById('photos'), thumbs = document.getElementById('thumbs');
-  document.getElementById('pickPhotos').addEventListener('click', function(){ input.click(); });
+  // ── 写真（1点ずつ追加 ＋ まとめて選ぶ）──
+  var input = document.getElementById('photos'), thumbs = document.getElementById('thumbs'), phItems = document.getElementById('phItems'), pickFor = null;
+  document.getElementById('pickPhotos').addEventListener('click', function(){ pickFor = null; input.click(); });
+  document.getElementById('addItem').addEventListener('click', function(){
+    if(allCount() >= MAX){ say('写真は全部で' + MAX + '枚までです', 'warn'); return; }
+    items.push({ name: '', photos: [] }); pickFor = items.length - 1; draw(); input.click();
+  });
+  phItems.addEventListener('click', function(ev){
+    var b = ev.target.closest('button'); if(!b) return;
+    var i = Number(b.dataset.i);
+    if(b.dataset.a === 'more'){ pickFor = i; input.click(); }
+    if(b.dataset.a === 'rm' && confirm('お品物' + (i + 1) + 'と、その写真を外します。よろしいですか？')){ items.splice(i, 1); draw(); guide(); }
+    if(b.dataset.a === 'rmp'){ items[i].photos.splice(Number(b.dataset.j), 1); draw(); guide(); }
+  });
+  phItems.addEventListener('input', function(ev){ var i = ev.target.dataset.n; if(i != null) items[Number(i)].name = ev.target.value; });
   input.addEventListener('change', async function(){
     var files = Array.prototype.slice.call(input.files || []); input.value = '';
-    for(var i = 0; i < files.length && photos.length < MAX; i++){
-      if(files[i].size > (C.maxPhotoMB || 10) * 1048576){ say('写真「' + files[i].name + '」が大きすぎます', 'bad'); continue; }
-      photos.push(await API.shrink(files[i], 1600));
+    var to = pickFor != null && items[pickFor] ? items[pickFor].photos : photos, cap = pickFor != null ? PER : MAX, warn = '';
+    for(var i = 0; i < files.length; i++){
+      if(to.length >= cap){ warn = pickFor != null ? '1点につき写真は' + PER + '枚までです' : ''; break; }
+      if(allCount() >= MAX){ warn = '写真は全部で' + MAX + '枚までです'; break; }
+      if(files[i].size > (C.maxPhotoMB || 15) * 1048576){ warn = '写真「' + files[i].name + '」が大きすぎます'; continue; }
+      to.push(await API.shrink(files[i], 1400));
     }
-    if(files.length && photos.length >= MAX) say('写真は' + MAX + '枚までです', 'warn');
+    say(warn, warn ? 'warn' : '');
     draw(); guide();
   });
+  function thumb(src, label, attrs){ return '<figure><img src="' + src + '" alt="' + label + '"><button type="button" ' + attrs + ' aria-label="' + label + 'を外す">×</button></figure>'; }
   function draw(){
+    phItems.innerHTML = items.map(function(x, i){
+      return '<div class="ph-item"><div class="ph-ih"><b>お品物 ' + (i + 1) + '</b><span>写真 ' + x.photos.length + ' / ' + PER + '枚</span><button type="button" class="ph-rm" data-a="rm" data-i="' + i + '">このお品物を外す</button></div>'
+        + '<input type="text" maxlength="60" data-n="' + i + '" value="' + (x.name || '').replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }) + '" placeholder="品名（わかれば）例：ロレックスの腕時計／18金のネックレス">'
+        + '<div class="thumbs">' + x.photos.map(function(p, j){ return thumb(p, 'お品物' + (i + 1) + 'の写真' + (j + 1), 'data-a="rmp" data-i="' + i + '" data-j="' + j + '"'); }).join('')
+        + (x.photos.length < PER ? '<button type="button" class="ph-more" data-a="more" data-i="' + i + '">' + (x.photos.length ? '＋ この品に写真を足す<small>刻印・ロゴ・傷・付属品など</small>' : '＋ 写真を撮る・選ぶ') + '</button>' : '') + '</div></div>';
+    }).join('');
     thumbs.innerHTML = '';
     photos.forEach(function(p, i){
       var fg = document.createElement('figure');
-      fg.innerHTML = '<img alt="選んだ写真 ' + (i + 1) + '"><button type="button" aria-label="写真 ' + (i + 1) + ' を外す">×</button>';
+      fg.innerHTML = '<img alt="まとめて選んだ写真 ' + (i + 1) + '"><button type="button" aria-label="写真 ' + (i + 1) + ' を外す">×</button>';
       fg.querySelector('img').src = p;
       fg.querySelector('button').onclick = function(){ photos.splice(i, 1); draw(); guide(); };
       thumbs.appendChild(fg);
     });
+    document.getElementById('phBulk').hidden = !photos.length;
+    var n = allCount(), ai = document.getElementById('addItem');
+    document.getElementById('phCount').textContent = n ? '写真 ' + n + '枚（お品物 ' + items.length + '点' + (photos.length ? '＋まとめて ' + photos.length + '枚' : '') + '）・全部で' + MAX + '枚まで' : '写真は全部で' + MAX + '枚まで送れます';
+    if(ai) ai.lastChild.textContent = items.length ? ' ＋ 次のお品物を追加して写真を撮る' : ' ＋ お品物を1点追加して写真を撮る';
   }
   function say(t, cls){ msg.innerHTML = t ? '<p class="msg ' + (cls || 'bad') + '">' + t + '</p>' : ''; }
   function val(n){ var el = f.elements[n]; return el ? String(el.value || '').trim() : ''; }
@@ -150,9 +200,9 @@
     if((k === 'photo' || k === 'takuhai') && !em) problems.push('メールアドレスを入力してください');
     if(em && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) problems.push('メールアドレスを正しく入力してください');
     if((k === 'visit' || k === 'takuhai') && !val('address')) problems.push('ご住所を入力してください');
-    if(k === 'photo' && photos.length === 0) problems.push('写真を1枚以上選んでください');
+    if(k === 'photo' && allCount() === 0) problems.push('写真を1枚以上選んでください');
     if(PLANMODE && !plan()) problems.push('A（おまとめ簡易買取）か B（30%高価買取）を選んでください');
-    if(PLANMODE && pre() && photos.length === 0) problems.push('仮査定をご希望の場合は、写真を1枚以上選んでください');
+    if(PLANMODE && pre() && allCount() === 0) problems.push('仮査定をご希望の場合は、写真を1枚以上選んでください');
     var bk = '';
     if(PLANMODE){
       var BK = KD_BANK.read(document.getElementById('bkForm'));
@@ -175,7 +225,8 @@
       itemNote: val('itemNote'), quantity: (k === 'visit' || k === 'takuhai') ? val('quantity') : '',
       kitBoxes: k === 'takuhai' ? Number(val('kitBoxes')) : null,
       wishes: wishes, howFound: val('howFound'), website: val('website'),
-      adult: true, consent: true, photoCount: (PLANMODE && !pre()) ? 0 : photos.length, ref: refText(),
+      adult: true, consent: true, photoCount: (PLANMODE && !pre()) ? 0 : allCount(), ref: refText(),
+      photoItems: (PLANMODE && !pre()) ? [] : items.filter(function(x){ return x.photos.length; }).map(function(x){ return { name: x.name.trim(), n: x.photos.length }; }),
       plan: PLANMODE ? plan() : '', preEst: PLANMODE ? pre() : false, bank: bk
     };
 
@@ -186,16 +237,19 @@
     catch(e){ btn.disabled = false; btn.textContent = 'この内容で申し込む'; say(e.message || '送信できませんでした'); return; }
 
     var okN = 0;
-    if(PLANMODE && !pre()) photos = [];
-    if(photos.length){
-      btn.textContent = '写真を送っています…';
-      for(var i = 0; i < photos.length; i++){
-        btn.textContent = '写真を送っています…（' + (i + 1) + ' / ' + photos.length + '）';
-        try{ await API.call('upload', { token: r.uploadToken, n: i + 1, data: photos[i] }); okN++; }catch(e){}
+    if(PLANMODE && !pre()){ photos = []; items = []; }
+    // 送る順：お品物1の写真 → お品物2 … → まとめて選んだ写真
+    var queue = [];
+    items.filter(function(x){ return x.photos.length; }).forEach(function(x, gi){ x.photos.forEach(function(p, j){ queue.push({ item: gi + 1, n: j + 1, data: p }); }); });
+    photos.forEach(function(p, j){ queue.push({ item: 0, n: j + 1, data: p }); });
+    if(queue.length){
+      for(var i = 0; i < queue.length; i++){
+        btn.textContent = '写真を送っています…（' + (i + 1) + ' / ' + queue.length + '）';
+        try{ await API.call('upload', { token: r.uploadToken, item: queue[i].item, n: queue[i].n, data: queue[i].data }); okN++; }catch(e){}
       }
       try{ await API.call('uploadDone', { token: r.uploadToken }); }catch(e){}
     }
-    finish(r, k, okN, photos.length, !!em, PLANMODE ? plan() : '', !!bk, Number(val('kitBoxes')) || 0);
+    finish(r, k, okN, queue.length, !!em, PLANMODE ? plan() : '', !!bk, Number(val('kitBoxes')) || 0);
   });
 
   // 受付のあと、お客様が順番にすること

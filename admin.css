@@ -128,3 +128,11 @@ body.adm{padding-bottom:0;background:#F6F8FC}
 .bulk{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#fffbe6;border:1px solid #f0e2a0;border-radius:10px;padding:8px 10px;margin:8px 0}
 .cust{background:#fafbfd;border:1px solid var(--line);border-radius:10px;padding:12px;margin:4px 0}
 #vBook h3{margin:18px 0 6px;font-size:1.05rem}
+.pic-bar{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%;margin:4px 0}
+.btn.line.small{background:#06C755;border-color:#06C755;color:#fff;margin-top:0}
+.pics .pic{margin:0;width:120px;display:flex;flex-direction:column;gap:3px}
+.pics .pic img{width:120px;height:120px}
+.pics .pic figcaption{font-size:.72rem;color:var(--mute);word-break:break-all}
+.pic-act{display:flex;gap:4px}
+.pic-act button{flex:1;font:inherit;font-size:.78rem;padding:4px 0;border-radius:6px;border:1px solid var(--line);background:#fff;cursor:pointer}
+.pic-act button.ln{background:#06C755;border-color:#06C755;color:#fff;font-weight:700}

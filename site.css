@@ -350,3 +350,28 @@ p{margin:0}
 .csteps li{padding:4px 10px;border-radius:999px;background:var(--blue-lt);font-size:.85rem;color:var(--blue-dk)}
 .csteps li.on{background:var(--blue);color:#fff;font-weight:700}
 .csteps li.done{background:#2e8b57;color:#fff}
+/* お申込み：いま入力する欄を赤で囲み、必須の欄に印を付ける */
+.f.need input:not([type=checkbox]):not([type=radio]),.f.need select,.f.need textarea{border-color:#f3a3a3;background:#fff8f8}
+.f.need>.check,.f.need>label.check{background:#fff8f8;border-radius:8px}
+.f.done-ok input:not([type=checkbox]):not([type=radio]){border-color:#5fb37f}
+.gtarget{outline:3px solid var(--red,#FF0001);outline-offset:4px;border-radius:10px;scroll-margin-top:170px}
+.gflash{animation:gflash 1s ease 2}
+@keyframes gflash{50%{outline-color:#ffb3b3;box-shadow:0 0 0 8px rgba(255,0,1,.12)}}
+.guide .gnext{background:#FFF0F0;border-radius:8px;padding:6px 10px;margin-top:8px}
+.guide .gnext::after{content:'　▶ 押すとその場所へ移動';font-size:.8rem;color:var(--red,#FF0001);font-weight:700;white-space:nowrap}
+/* 写真 */
+.ph-help{background:#F6F8FF;border:1px solid var(--blue-line);border-radius:var(--r);padding:12px 14px;margin:6px 0 12px}
+.ph-h{font-weight:700;color:var(--blue-dk);margin:0 0 6px}
+.ph-steps{margin:0;padding-left:1.4em;display:grid;gap:4px;font-size:.95rem}
+.ph-tips{margin:8px 0 0;font-size:.88rem;color:var(--mute)}
+.ph-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ph-items{display:grid;gap:10px;margin-top:12px}
+.ph-item{border:2px solid var(--blue-line);border-radius:var(--r);padding:10px 12px;background:#fff}
+.ph-ih{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
+.ph-ih span{font-size:.85rem;color:var(--mute)}
+.ph-rm{margin-left:auto;font:inherit;font-size:.8rem;background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer}
+.ph-item input[type=text]{width:100%}
+.thumbs .ph-more{width:84px;height:84px;border:2px dashed var(--blue);border-radius:8px;background:#F6F8FF;color:var(--blue);font:inherit;font-size:.78rem;font-weight:700;cursor:pointer;line-height:1.3;padding:4px;position:static;top:auto;right:auto}
+.thumbs .ph-more small{display:block;font-weight:400;font-size:.66rem;color:var(--mute)}
+.ph-bulk{margin-top:12px}
+.ph-bh{font-weight:700;margin:0}.ph-bh small{font-weight:400;color:var(--mute);margin-left:6px}
