@@ -777,28 +777,26 @@
       if(r.created_at < c.first) c.first = r.created_at;
       if(isDeal(r)){ c.deals++; c.total += dealAmt(r); }
     });
-    // 日報のお客様（店頭）も載せる。顧客管理番号＝年月日＋その日のナンバー（その日の①のお客様が01）
+    // 日報のお客様（店頭）も載せる。受付番号（受付番号）＝年月日6桁＋その日のナンバー（その日の①のお客様が01。例 26110301）
     var maxNo = {};
     (BK.reports || []).forEach(function(r){ (r.deals || []).forEach(function(d, i){
-      var n = dealNo(d, i), day = String(r.date).replace(/-/g, ''), t = (/^(\d{1,2}):(\d{2})/.exec(d.time || '') || [0, '00', '00']);
+      var n = dealNo(d, i), day = String(r.date).replace(/-/g, '').slice(2), t = (/^(\d{1,2}):(\d{2})/.exec(d.time || '') || [0, '00', '00']);
       var at = r.date + 'T' + ('0' + t[1]).slice(-2) + ':' + t[2] + ':00+09:00', its = d.items || [];
       maxNo[day] = Math.max(maxNo[day] || 0, n);
       var k = 'rp:' + r.date + ':' + n;
-      M[k] = { key: k, no: day + '-' + ('0' + n).slice(-2), name: '店頭のお客様', kana: '', phone: '', email: '', address: '', n: 1, deals: d.status === '成約' ? 1 : 0,
+      M[k] = { key: k, no: day + ('0' + n).slice(-2), name: '店頭のお客様', kana: '', phone: '', email: '', address: '', n: 1, deals: d.status === '成約' ? 1 : 0,
         total: d.status === '成約' ? sumOf(its, 'cost') : 0, first: at, last: at, refs: {}, kinds: { '店頭（日報）': 1 }, apps: [], rp: { date: r.date, d: d }, summary: its.map(function(x){ return x.name; }).filter(Boolean).join('、') };
     }); });
-    // 申込のお客様：最初の申込日の、その日の日報の番号の続きから時刻順に振る
-    var byDay = {};
-    Object.keys(M).forEach(function(k){ var c = M[k]; if(c.rp) return; var day = ymdKey(c.first); (byDay[day] = byDay[day] || []).push(c); });
-    Object.keys(byDay).forEach(function(day){ byDay[day].sort(function(a, b){ return a.first < b.first ? -1 : 1; }).forEach(function(c, i){ c.no = day + '-' + ('0' + ((maxNo[day] || 0) + i + 1)).slice(-2); }); });
+    // 申込のお客様：最初の申込の受付番号が顧客管理番号
+    Object.keys(M).forEach(function(k){ var c = M[k]; if(c.rp) return; var f = c.apps.slice().sort(function(a, b){ return a.created_at < b.created_at ? -1 : 1; })[0]; c.no = f ? String(f.receipt_no || '') : ''; });
     var notes = {}; (BK.notes || []).forEach(function(x){ notes[x.key] = x; });
     return Object.keys(M).map(function(k){ var c = M[k]; c.note = (notes[k] || {}).note || ''; c.rank = (notes[k] || {}).rank || ''; return c; })
-      .sort(function(a, b){ return a.no < b.no ? 1 : -1; });
+      .sort(function(a, b){ var x = new Date(b.first) - new Date(a.first); return x || (a.no < b.no ? 1 : -1); });
   }
   // 日報の①②…をその日のナンバーに（①＝1）。番号がなければ並び順
   function dealNo(d, i){ var c = String(d.no || '').charCodeAt(0); if(c >= 0x2460 && c <= 0x2473) return c - 0x2460 + 1; if(c >= 0x3251 && c <= 0x325F) return c - 0x3251 + 21; var m = /\d+/.exec(d.no || ''); return m ? +m[0] : i + 1; }
   function ymdKey(iso){ var d = new Date(iso); if(isNaN(d)) return '00000000'; var j = new Date(d.getTime() + 9 * 3600000); return j.toISOString().slice(0, 10).replace(/-/g, ''); }
-  // 商品番号＝年月日-お客様の番号2桁＋その方の何点目2桁（①のお客様の1点目＝0101、③の2点目＝0302）
+  // 商品番号＝受付番号＋その方の何点目2桁（26110301 の1点目＝2611030101、③の2点目＝2611030302）
   function itemNoOf(date, d, i, j){ return custNoOf(date, d, i) + ('0' + (j + 1)).slice(-2); }
   function prodNo(p){
     var m = /^日報:(\d{4}-\d{2}-\d{2}):([^:]+):(\d+)$/.exec(p.source || '');
@@ -806,17 +804,17 @@
     var R = (BK.reports || []).filter(function(r){ return r.date === m[1]; })[0], D = R ? R.deals || [] : [], di = -1;
     D.forEach(function(d, i){ if(di < 0 && (String(d.no || '') === m[2] || String(i + 1) === m[2])) di = i; });
     var n = di >= 0 ? dealNo(D[di], di) : dealNo({ no: m[2] }, (+m[2] || 1) - 1);
-    return m[1].replace(/-/g, '') + '-' + ('0' + n).slice(-2) + ('0' + m[3]).slice(-2);
+    return m[1].replace(/-/g, '').slice(2) + ('0' + n).slice(-2) + ('0' + m[3]).slice(-2);
   }
-  function custNoOf(date, d, i){ return String(date).replace(/-/g, '') + '-' + ('0' + dealNo(d, i)).slice(-2); }
+  function custNoOf(date, d, i){ return String(date).replace(/-/g, '').slice(2) + ('0' + dealNo(d, i)).slice(-2); }
   function customersView(){
     var C = customers(), q = BF.cq.replace(/[-\s]/g, '');
     var L = C.filter(function(c){ return !q || (c.no + c.name + (c.kana || '') + c.phone + (c.email || '') + c.note + c.rank + (c.summary || '')).replace(/[-\s]/g, '').indexOf(q) >= 0; });
     var sumT = C.reduce(function(t, c){ return t + c.total; }, 0), rep = C.filter(function(c){ return c.deals >= 2; }).length;
     var h = '<div class="bk-head"><h2>顧客管理</h2><div class="bk-tools"><input type="search" data-bf="cq" value="' + esc(BF.cq) + '" placeholder="番号・名前・電話・メモで探す"><button class="btn ghost small" data-bk="cust-csv">表を書き出す</button></div></div>'
       + '<div class="kpis"><div><small>お客様</small><b>' + C.length + '人</b></div><div><small>2回以上ご成約</small><b>' + rep + '人</b></div><div><small>買取の合計</small><b>' + yen(sumT) + '</b></div></div>'
-      + '<p class="hint">受付の記録（電話番号ごと）と、日報の店頭のお客様をまとめています。顧客管理番号は「年月日-その日のナンバー」（その日の①のお客様が01。申込のお客様は、その日の日報の番号の続き）。区分とメモはお客様を選んで書けます。</p>'
-      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>顧客管理番号</th><th>お名前</th><th>電話</th><th>区分</th><th class="num">お申込み</th><th class="num">成約</th><th class="num">買取合計</th><th>最終</th></tr></thead><tbody>'
+      + '<p class="hint">受付の記録（電話番号ごと）と、日報の店頭のお客様をまとめています。顧客管理番号は受付番号と同じで「年月日6桁＋その日のナンバー」（例 26110301＝2026年11月3日の①のお客様）。サイト・電話の申込にも同じ形の受付番号が付きます（その日の番号の続き）。区分とメモはお客様を選んで書けます。</p>'
+      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>受付番号<br><small>（顧客管理番号）</small></th><th>お名前</th><th>電話</th><th>区分</th><th class="num">お申込み</th><th class="num">成約</th><th class="num">買取合計</th><th>最終</th></tr></thead><tbody>'
       + (L.length ? L.map(function(c){ return '<tr class="click' + (BOPEN === c.key ? ' on' : '') + '" data-bk="cust-open" data-key="' + esc(c.key) + '"><td class="nowrap"><b>' + esc(c.no || '') + '</b></td><td><b>' + esc(c.name) + '</b>' + (c.kana ? '<br><small>' + esc(c.kana) + '</small>' : '') + (c.rp ? '<br><small>' + esc((c.rp.d.status || '') + '：' + (c.summary || '')).slice(0, 60) + '</small>' : '') + '</td><td>' + esc(c.phone) + '</td><td>' + (c.rank ? '<span class="tag go">' + esc(c.rank) + '</span>' : '') + '</td><td class="num">' + c.n + '</td><td class="num">' + c.deals + '</td><td class="num">' + yen(c.total) + '</td><td>' + ymd(c.last) + '</td></tr>'
         + (BOPEN === c.key ? '<tr><td colspan="8">' + (c.rp ? custDetailRp(c) : custDetail(c)) + '</td></tr>' : ''); }).join('') : '<tr><td colspan="8" class="empty">見つかりません</td></tr>')
       + '</tbody></table></div>';
@@ -825,7 +823,7 @@
   // 日報のお客様（店頭）の詳細
   function custDetailRp(c){
     var d = c.rp.d, its = d.items || [], co = sumOf(its, 'cost'), pr = sumOf(its, 'price');
-    return '<div class="cust" data-cust-detail><div class="grid2"><dl class="kv"><dt>顧客管理番号</dt><dd>' + esc(c.no) + '</dd><dt>来店日</dt><dd>' + esc(c.rp.date) + '（日報 ' + esc(d.no || '') + '）</dd><dt>時間</dt><dd>' + esc(d.time || '') + '</dd><dt>結果</dt><dd>' + esc(d.status || '') + '</dd>'
+    return '<div class="cust" data-cust-detail><div class="grid2"><dl class="kv"><dt>受付番号（顧客管理番号）</dt><dd>' + esc(c.no) + '</dd><dt>来店日</dt><dd>' + esc(c.rp.date) + '（日報 ' + esc(d.no || '') + '）</dd><dt>時間</dt><dd>' + esc(d.time || '') + '</dd><dt>結果</dt><dd>' + esc(d.status || '') + '</dd>'
       + '<dt>買取額</dt><dd>' + yen(co) + '</dd><dt>予定卸値</dt><dd>' + yen(pr) + '</dd>' + (d.note ? '<dt>メモ</dt><dd>' + esc(d.note) + '</dd>' : '') + '</dl>'
       + '<div><label class="f">区分<br><select data-cf="rank">' + ['', '一般', '常連', '優良', '紹介', '要注意'].map(function(x){ return '<option' + (x === c.rank ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>'
       + '<div class="f"><label>メモ（お客様には見えません）</label><textarea data-cf="note" style="min-height:80px">' + esc(c.note) + '</textarea></div><button class="btn blue small" data-bk="cust-save" data-key="' + esc(c.key) + '">保存</button></div></div>'
@@ -837,7 +835,7 @@
     var P = (BK.products || []).filter(function(p){ return c.apps.some(function(a){ return a.id === p.app_id; }); });
     return '<div class="cust" data-cust-detail><div class="grid2"><dl class="kv"><dt>お名前</dt><dd>' + esc(c.name) + (c.kana ? '（' + esc(c.kana) + '）' : '') + '</dd><dt>電話</dt><dd><a href="tel:' + esc(c.phone) + '">' + esc(c.phone) + '</a></dd>'
       + (c.email ? '<dt>メール</dt><dd>' + esc(c.email) + '</dd>' : '') + (c.address ? '<dt>住所</dt><dd>' + esc(c.address) + '</dd>' : '')
-      + '<dt>顧客管理番号</dt><dd>' + esc(c.no || '') + '</dd><dt>初回</dt><dd>' + ymd(c.first) + '</dd><dt>利用方法</dt><dd>' + esc(Object.keys(c.kinds).join('・')) + '</dd>' + (Object.keys(c.refs).length ? '<dt>紹介元</dt><dd>' + esc(Object.keys(c.refs).join('、')) + '</dd>' : '') + '</dl>'
+      + '<dt>受付番号（顧客管理番号）</dt><dd>' + esc(c.no || '') + '</dd><dt>初回</dt><dd>' + ymd(c.first) + '</dd><dt>利用方法</dt><dd>' + esc(Object.keys(c.kinds).join('・')) + '</dd>' + (Object.keys(c.refs).length ? '<dt>紹介元</dt><dd>' + esc(Object.keys(c.refs).join('、')) + '</dd>' : '') + '</dl>'
       + '<div><label class="f">区分<br><select data-cf="rank">' + ['', '一般', '常連', '優良', '紹介', '要注意'].map(function(x){ return '<option' + (x === c.rank ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>'
       + '<div class="f"><label>メモ（お客様には見えません）</label><textarea data-cf="note" style="min-height:80px">' + esc(c.note) + '</textarea></div><button class="btn blue small" data-bk="cust-save" data-key="' + esc(c.key) + '" data-name="' + esc(c.name) + '">区分・メモを保存</button></div></div>'
       + '<h3 style="margin-top:12px">お申込みの履歴</h3><table class="bk-table"><thead><tr><th>受付日</th><th>受付番号</th><th>方法</th><th>状態</th><th class="num">金額</th><th></th></tr></thead><tbody>'
@@ -1003,7 +1001,7 @@
       months.forEach(function(k, mi){
         var L = open_.filter(function(x){ return String(x.date).slice(0, 7) === k; }); if(!L.length) return;
         lost += '<details class="rp-month" data-rpo="lost:' + k + '"' + (isOpen('lost:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '件）</summary>'
-          + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>番号（顧客管理番号）</th><th>来店～退店</th><th>状態</th><th>お品物・詳細</th><th class="num">提示額</th><th class="num">希望額</th><th>メモ</th></tr></thead><tbody>'
+          + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>番号（受付番号）</th><th>来店～退店</th><th>状態</th><th>お品物・詳細</th><th class="num">提示額</th><th class="num">希望額</th><th>メモ</th></tr></thead><tbody>'
           + L.map(function(x){ return '<tr><td>' + esc(x.date) + '</td><td class="nowrap">' + esc(x.d.no || '') + ' <small>' + esc(x.cno) + '</small></td><td>' + esc(x.d.time || '') + '</td><td><span class="tag new">' + esc(x.d.status) + '</span></td><td>' + esc((x.d.items || []).map(function(i){ return i.name; }).join('、')) + '</td><td class="num">' + yen(x.d.offer) + '</td><td class="num">' + yen(x.d.wish) + '</td><td>' + memoCell(x.d.note || '') + '</td></tr>'; }).join('')
           + '</tbody></table></div></details>';
       });
@@ -1048,7 +1046,7 @@
     var cnt = {}; D.forEach(function(d){ cnt[d.status || '－'] = (cnt[d.status || '－'] || 0) + 1; });
     var key = 'day:' + r.date;
     return '<tr class="rp-sub"><td colspan="7"><details data-rpo="' + key + '"' + (isOpen(key, false) ? ' open' : '') + '><summary>お客様 ' + D.length + '組（' + Object.keys(cnt).map(function(k){ return k + cnt[k]; }).join('・') + '）</summary>'
-      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>番号（顧客管理番号）</th><th>時間</th><th>結果</th><th class="num">買取額</th><th class="num">予定卸値</th><th class="num">予定利益</th><th>商品詳細（商品番号／品目／買取価格／予定卸値／備考）</th></tr></thead><tbody>'
+      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>番号（受付番号）</th><th>時間</th><th>結果</th><th class="num">買取額</th><th class="num">予定卸値</th><th class="num">予定利益</th><th>商品詳細（商品番号／品目／買取価格／予定卸値／備考）</th></tr></thead><tbody>'
       + D.map(function(d, di){ var its = d.items || [], c = sumOf(its, 'cost'), p = sumOf(its, 'price');
           return '<tr><td class="nowrap">' + esc(d.no || '') + '<br><small>' + custNoOf(r.date, d, D.indexOf(d)) + '</small></td><td>' + esc(d.time || '') + '</td><td><span class="tag ' + (d.status === '成約' ? 'ok' : 'new') + '">' + esc(d.status || '') + '</span></td><td class="num">' + yen(c) + '</td><td class="num">' + yen(p) + '</td><td class="num' + (p - c < 0 ? ' minus' : '') + '">' + (its.some(function(x){ return x.cost != null && x.cost !== ''; }) ? yen(p - c) : '－') + '</td><td>'
             + '<table class="rp-mini"><tbody>' + its.map(function(x, j){ return '<tr><td class="nowrap"><small>' + itemNoOf(r.date, d, di, j) + '</small></td><td>' + esc(x.name || '') + '</td><td class="num">' + (x.cost == null ? '－' : yen(x.cost)) + '</td><td class="num">' + (x.price == null ? '－' : yen(x.price)) + '</td><td>' + esc(x.note || '') + '</td></tr>'; }).join('') + '</tbody></table>'
@@ -1155,7 +1153,7 @@
       if(act === 'buyer-new'){ BOPEN = 'new'; drawBook(); return; }
       if(act === 'close'){ BOPEN = null; drawBook(); return; }
       if(act === 'go-case'){ await showView('cases'); TAB = 'all'; drawList(); open(b.dataset.id); window.scrollTo(0, 0); return; }
-      if(act === 'cust-csv'){ var C = customers(); csvDl('顧客一覧', ['顧客管理番号', 'お名前', 'ふりがな', '電話', 'メール', '住所', '区分', 'お申込み', '成約', '買取合計', '初回', '最終', '紹介元', 'メモ'], C.map(function(c){ return [c.no, c.name, c.kana, c.phone, c.email, c.address, c.rank, c.n, c.deals, c.total, ymd(c.first), ymd(c.last), Object.keys(c.refs).join('、'), c.note]; })); return; }
+      if(act === 'cust-csv'){ var C = customers(); csvDl('顧客一覧', ['受付番号（顧客管理番号）', 'お名前', 'ふりがな', '電話', 'メール', '住所', '区分', 'お申込み', '成約', '買取合計', '初回', '最終', '紹介元', 'メモ'], C.map(function(c){ return [c.no, c.name, c.kana, c.phone, c.email, c.address, c.rank, c.n, c.deals, c.total, ymd(c.first), ymd(c.last), Object.keys(c.refs).join('、'), c.note]; })); return; }
       if(act === 'prod-csv'){ csvDl('商品管理表', ['商品番号', '商品ID', '登録日', '受付番号', '売主', '品名', '品目', '点数', '買取価格', '見込み卸値', '状態', '卸先', '出品日', '売却日', '売却価格', '手数料', '粗利', '入金額', '入金日', 'メモ'], (BK.products || []).map(function(p){ return [prodNo(p), p.id, ymd(p.created_at), p.receipt_no, p.seller, p.name, p.category, p.qty, p.cost, p.expect, BK.productSt[p.status], p.buyer, ymd(p.listed_at), ymd(p.sold_at), p.price, p.fee, profit(p), p.paid_in, ymd(p.paid_in_at), p.memo]; })); return; }
       if(act === 'buyer-csv'){ csvDl('卸先管理帳', ['卸先ID', '名称', '種別', '担当者', '電話', 'メール', '住所', '取扱品目', '手数料率', '支払条件', '古物商許可番号', '取引中', 'メモ'], (BK.buyers || []).map(function(x){ return [x.id, x.name, x.type, x.person, x.tel, x.email, x.address, x.items, x.fee_rate, x.terms, x.license, x.active === false ? '休止' : '取引中', x.memo]; })); return; }
       if(act === 'ledger-csv'){
