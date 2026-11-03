@@ -997,7 +997,8 @@
     var mLabel = function(k){ return k.replace('-', '年') + '月'; };
     var lost = '';   // 失注案件（追客リスト）は画面のいちばん最後に出す
     if(open_.length){
-      lost += '<h3>失注案件（追客リスト）</h3>';
+      // 失注案件は基本は閉じておき、必要なときに開く
+      lost += '<details class="rp-month rp-lost" data-rpo="lost-all"' + (isOpen('lost-all', false) ? ' open' : '') + '><summary>失注案件（追客リスト）' + open_.length + '件　<small>押すと開きます</small></summary><div style="padding:4px 10px 10px">';
       months.forEach(function(k, mi){
         var L = open_.filter(function(x){ return String(x.date).slice(0, 7) === k; }); if(!L.length) return;
         lost += '<details class="rp-month" data-rpo="lost:' + k + '"' + (isOpen('lost:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '件）</summary>'
@@ -1005,6 +1006,7 @@
           + L.map(function(x){ return '<tr><td>' + esc(x.date) + '</td><td class="nowrap">' + esc(x.d.no || '') + ' <small>' + esc(x.cno) + '</small></td><td>' + esc(x.d.time || '') + '</td><td><span class="tag new">' + esc(x.d.status) + '</span></td><td>' + esc((x.d.items || []).map(function(i){ return i.name; }).join('、')) + '</td><td class="num">' + yen(x.d.offer) + '</td><td class="num">' + yen(x.d.wish) + '</td><td>' + memoCell(x.d.note || '') + '</td></tr>'; }).join('')
           + '</tbody></table></div></details>';
       });
+      lost += '</div></details>';
     }
     h += '<h3>登録した日報</h3>';
     if(!R.length) h += '<p class="empty">まだ日報はありません</p>';
