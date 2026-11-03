@@ -934,6 +934,7 @@
 
   // ── 日報（文章で書いた日報を貼り付け → AIが読み取り → 確かめて登録）──
   var RP = null, RPTEXT = '', RPOPEN = {};
+  var DEAL_ST = ['成約', '失注', '預り', '基準外'];
   // 長いメモは1行目だけ出して、押すと全部見える
   function memoCell(t){
     t = String(t || ''); var lines = t.split('\n');
@@ -976,7 +977,7 @@
       h += '<details class="rp-month" data-rpo="rep:' + k + '"' + (isOpen('rep:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '日分・月間買取額 ' + yen(mb) + '）</summary>'
         + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
         + L.map(function(r){ return '<tr><td>' + esc(r.date) + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
-          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>'; }).join('')
+          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
         + '</tbody></table></div></details>';
     });
     return h;
@@ -1000,6 +1001,19 @@
     return '<div class="table-wrap"><table class="bk-table"><thead><tr><th>種類</th><th class="num">金額</th><th>日報の記載</th></tr></thead><tbody>'
       + M.map(function(x){ return '<tr><td>' + esc(x.kind) + '</td><td class="num' + (x.sign < 0 ? ' minus' : '') + '">' + (x.sign < 0 ? '−' : '+') + yen(x.amount) + '</td><td>' + esc(x.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
+  // 登録した日報の「お客様ごと」（時間・結果・買取額・予定卸値・予定利益・商品詳細）
+  function dealsRow(r, isOpen){
+    var D = r.deals || []; if(!D.length) return '';
+    var cnt = {}; D.forEach(function(d){ cnt[d.status || '－'] = (cnt[d.status || '－'] || 0) + 1; });
+    var key = 'day:' + r.date;
+    return '<tr class="rp-sub"><td colspan="7"><details data-rpo="' + key + '"' + (isOpen(key, false) ? ' open' : '') + '><summary>お客様 ' + D.length + '組（' + Object.keys(cnt).map(function(k){ return k + cnt[k]; }).join('・') + '）</summary>'
+      + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>番号</th><th>時間</th><th>結果</th><th class="num">買取額</th><th class="num">予定卸値</th><th class="num">予定利益</th><th>商品詳細（品目／買取価格／予定卸値／備考）</th></tr></thead><tbody>'
+      + D.map(function(d){ var its = d.items || [], c = sumOf(its, 'cost'), p = sumOf(its, 'price');
+          return '<tr><td>' + esc(d.no || '') + '</td><td>' + esc(d.time || '') + '</td><td><span class="tag ' + (d.status === '成約' ? 'ok' : 'new') + '">' + esc(d.status || '') + '</span></td><td class="num">' + yen(c) + '</td><td class="num">' + yen(p) + '</td><td class="num' + (p - c < 0 ? ' minus' : '') + '">' + (its.some(function(x){ return x.cost != null && x.cost !== ''; }) ? yen(p - c) : '－') + '</td><td>'
+            + '<table class="rp-mini"><tbody>' + its.map(function(x){ return '<tr><td>' + esc(x.name || '') + '</td><td class="num">' + (x.cost == null ? '－' : yen(x.cost)) + '</td><td class="num">' + (x.price == null ? '－' : yen(x.price)) + '</td><td>' + esc(x.note || '') + '</td></tr>'; }).join('') + '</tbody></table>'
+            + (d.note ? '<div class="hint" style="margin:4px 0 0">' + esc(d.note) + '</div>' : '') + '</td></tr>'; }).join('')
+      + '</tbody></table></div></details></td></tr>';
+  }
   function reportPreview(){
     var won = (RP.deals || []).filter(function(d){ return d.status === '成約'; }), wItems = [].concat.apply([], won.map(function(d){ return d.items || []; }));
     var buyers = (BK.buyers || []).filter(function(b){ return b.active !== false; });
@@ -1007,17 +1021,25 @@
     var h = '<div class="cust rp"><h3 style="margin-top:0">読み取った内容（直せます）</h3><div class="inline">'
       + '<label class="f">日付<br>' + rin('date', 'date') + '</label><label class="f">来客数<br>' + rin('visitors', 'number', '6em') + '</label><label class="f">買取額<br>' + rin('buy', 'number') + '</label><label class="f">売値<br>' + rin('sell', 'number') + '</label><label class="f">利益<br>' + rin('profit', 'number') + '</label><label class="f">残金（レジ）<br>' + rin('cash', 'number') + '</label></div>'
       + '<p class="hint" style="margin:4px 0">「月間」がつくものは、その月の総数（1日から今日まで）です。</p><div class="inline"><label class="f">月間来客数<br>' + rin('month.visitors', 'number', '6em') + '</label><label class="f">月間買取額<br>' + rin('month.buy', 'number') + '</label><label class="f">月間売値<br>' + rin('month.sell', 'number') + '</label><label class="f">月間利益<br>' + rin('month.profit', 'number') + '</label></div>'
-      + '<ul class="rp-chk">' + chk('成約品の買取価格の合計', sumOf(wItems, 'cost'), Number(RP.buy) || 0) + chk('成約品の売値（見込み）の合計', sumOf(wItems, 'price'), Number(RP.sell) || 0) + chk('売値 − 買取額', (Number(RP.sell) || 0) - (Number(RP.buy) || 0), Number(RP.profit) || 0) + '</ul>'
-      + '<h3>商談（成約した品物は商品管理表に「在庫」で入り、売値は「見込み卸値」として記録します）</h3>';
+      + '<ul class="rp-chk">' + chk('成約品の買取価格の合計', sumOf(wItems, 'cost'), Number(RP.buy) || 0) + chk('成約品の予定卸値の合計', sumOf(wItems, 'price'), Number(RP.sell) || 0) + chk('売値 − 買取額', (Number(RP.sell) || 0) - (Number(RP.buy) || 0), Number(RP.profit) || 0) + '</ul>'
+      + '<h3>お客様ごと（成約した品物は商品管理表に「在庫」で入り、予定卸値は「見込み卸値」として記録します）</h3>';
+    // お客様ごと：時間・結果・買取額・予定卸値・予定利益・商品詳細（品目・買取価格・予定卸値・備考）
     (RP.deals || []).forEach(function(d, i){
-      var p = 'deals.' + i;
-      h += '<div class="rp-deal"><div class="inline"><b>' + esc(d.no || (i + 1)) + '</b>' + rin(p + '.time', 'text', '9em') + '<select data-rp="' + p + '.status">' + ['成約', '失注'].concat(d.status && d.status !== '成約' && d.status !== '失注' ? [d.status] : []).map(function(x){ return '<option' + (x === d.status ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>'
-        + (d.status !== '成約' ? '提示額 ' + rin(p + '.offer', 'number', '8em') + ' 希望額 ' + rin(p + '.wish', 'number', '8em') : '') + '</div>'
-        + '<table class="bk-table"><thead><tr><th>品名</th><th class="num">買取価格</th><th class="num">' + (d.status === '成約' ? '売値（見込み卸値）' : '卸の見込み') + '</th></tr></thead><tbody>'
-        + (d.items || []).map(function(x, j){ return '<tr><td>' + rin(p + '.items.' + j + '.name', 'text', '100%') + '</td><td class="num">' + rin(p + '.items.' + j + '.cost', 'number', '8em') + '</td><td class="num">' + rin(p + '.items.' + j + '.price', 'number', '8em') + '</td></tr>'; }).join('')
-        + '</tbody></table><div class="f">メモ ' + rin(p + '.note', 'text', '100%') + '</div></div>';
+      var p = 'deals.' + i, its = d.items || [], c = sumOf(its, 'cost'), pr = sumOf(its, 'price');
+      h += '<div class="rp-deal st-' + esc(d.status || '') + '"><div class="rp-dh">'
+        + '<b class="rp-no">' + esc(d.no || (i + 1)) + '</b>'
+        + '<label>時間<br>' + rin(p + '.time', 'text', '8.5em') + '</label>'
+        + '<label>結果<br><select data-rp="' + p + '.status">' + DEAL_ST.concat(d.status && DEAL_ST.indexOf(d.status) < 0 ? [d.status] : []).map(function(x){ return '<option' + (x === d.status ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>'
+        + '<div class="rp-sum"><small>買取額</small><b>' + yen(c) + '</b></div><div class="rp-sum"><small>予定卸値</small><b>' + yen(pr) + '</b></div><div class="rp-sum"><small>予定利益</small><b class="' + (pr - c < 0 ? 'minus' : '') + '">' + (its.some(function(x){ return x.cost != null && x.cost !== ''; }) ? yen(pr - c) : '－') + '</b></div>'
+        + (d.status !== '成約' ? '<label>提示額<br>' + rin(p + '.offer', 'number', '7em') + '</label><label>希望額<br>' + rin(p + '.wish', 'number', '7em') + '</label>' : '')
+        + '<button class="btn ghost small rp-del" data-bk="rp-deldeal" data-i="' + i + '" title="このお客様を消す">×</button></div>'
+        + '<div class="table-wrap"><table class="bk-table rp-items"><thead><tr><th>品目（商品詳細）</th><th class="num">買取価格</th><th class="num">予定卸値</th><th>備考</th><th></th></tr></thead><tbody>'
+        + its.map(function(x, j){ var q = p + '.items.' + j; return '<tr><td>' + rin(q + '.name', 'text', '100%') + '</td><td class="num">' + rin(q + '.cost', 'number', '7.5em') + '</td><td class="num">' + rin(q + '.price', 'number', '7.5em') + '</td><td>' + rin(q + '.note', 'text', '100%') + '</td><td><button class="btn ghost small" data-bk="rp-delitem" data-i="' + i + '" data-j="' + j + '" title="この品物を消す">×</button></td></tr>'; }).join('')
+        + '</tbody></table></div>'
+        + '<div class="rp-df"><button class="btn ghost small" data-bk="rp-additem" data-i="' + i + '">＋ 品物を追加</button><label class="f">メモ（再来店・相見積もり・お断りの理由など）' + rin(p + '.note', 'text', '100%') + '</label></div></div>';
     });
-    h += '<label class="f">見込み卸値の卸先（金額が出ている卸先）<br><select data-rp-buyer><option value="">買取大吉本部（卸）' + (hq ? '' : '（自動で作成）') + '</option>' + buyers.filter(function(b){ return b !== hq; }).map(function(b){ return '<option value="' + b.id + '">' + esc(b.name) + '</option>'; }).join('') + '</select></label>';
+    h += '<div class="actions" style="margin:6px 0 14px"><button class="btn ghost small" data-bk="rp-adddeal">＋ お客様を追加</button></div>';
+    h += '<label class="f">予定卸値の卸先（金額が出ている卸先）<br><select data-rp-buyer><option value="">買取大吉本部（卸）' + (hq ? '' : '（自動で作成）') + '</option>' + buyers.filter(function(b){ return b !== hq; }).map(function(b){ return '<option value="' + b.id + '">' + esc(b.name) + '</option>'; }).join('') + '</select></label>';
     (RP.net || []).forEach(function(n, i){
       var p = 'net.' + i, s = sumOf(n.items, 'price');
       h += '<h3>ネット販売：' + esc(n.channel || '') + ' ' + esc(n.month || '') + '（' + (n.items || []).length + '点）</h3><ul class="rp-chk">' + chk('売れた価格の合計', s, Number(n.total) || 0) + '<li>代金：<select data-rp="' + p + '.paid"><option value=""' + (n.paid ? '' : ' selected') + '>入金予定（まだ入っていない）</option><option value="cash"' + (n.paid === 'cash' ? ' selected' : '') + '>レジへ入金済み</option></select></li>' + (n.expect_total ? chk('売上見込み（元卸値）の合計', sumOf(n.items, 'expect'), Number(n.expect_total) || 0) : '') + '</ul><p class="hint">「800→2112」は、売れた在庫の「売上見込みだった価格 → 最終的に売れた価格」です。在庫に同じ品名があれば、その商品を売却済にします。</p>'
@@ -1047,6 +1069,11 @@
     var act = b.dataset.bk, lb = b.textContent;
     try{
       if(act === 'rp-clear'){ RP = null; drawBook(); return; }
+      // お客様・品物の行を増やす／減らす
+      if(act === 'rp-additem'){ var D = RP.deals[+b.dataset.i]; (D.items = D.items || []).push({ name: '', cost: null, price: null, note: null }); drawBook(); return; }
+      if(act === 'rp-delitem'){ RP.deals[+b.dataset.i].items.splice(+b.dataset.j, 1); drawBook(); return; }
+      if(act === 'rp-adddeal'){ RP.deals.push({ no: null, time: '', status: '成約', items: [{ name: '', cost: null, price: null, note: null }], note: null }); drawBook(); return; }
+      if(act === 'rp-deldeal'){ if(!confirm('このお客様の行を消しますか？')) return; RP.deals.splice(+b.dataset.i, 1); drawBook(); return; }
       b.disabled = true;
       if(act === 'rp-parse'){
         if(RPTEXT.trim().length < 10) throw new Error('日報の文章を貼り付けてください');
