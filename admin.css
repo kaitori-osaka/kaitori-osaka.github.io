@@ -144,3 +144,12 @@ body.adm{padding-bottom:0;background:#F6F8FC}
 #appMsg .msg{position:relative;padding-right:40px}
 .msg-x{position:absolute;top:6px;right:8px;border:0;background:transparent;font-size:1.3rem;line-height:1;cursor:pointer;color:inherit}
 #appMsg{position:sticky;top:70px;z-index:35}
+
+/* 日報：月ごとの折りたたみ・長いメモ */
+.rp-month{border:1px solid #dde3ee;border-radius:10px;margin:8px 0;background:#fff}
+.rp-month>summary{cursor:pointer;padding:10px 14px;font-weight:700}
+.rp-month[open]>summary{border-bottom:1px solid #dde3ee}
+.rp-month .table-wrap{margin:0}
+.rp-memo>summary{cursor:pointer}
+.rp-memo>summary small{color:#2563eb}
+.rp-memo[open]>summary small{display:none}

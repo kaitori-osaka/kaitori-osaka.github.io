@@ -933,7 +933,13 @@
   }
 
   // ── 日報（文章で書いた日報を貼り付け → AIが読み取り → 確かめて登録）──
-  var RP = null, RPTEXT = '';
+  var RP = null, RPTEXT = '', RPOPEN = {};
+  // 長いメモは1行目だけ出して、押すと全部見える
+  function memoCell(t){
+    t = String(t || ''); var lines = t.split('\n');
+    if(lines.length <= 2 && t.length <= 60) return '<span style="white-space:pre-wrap">' + esc(t) + '</span>';
+    return '<details class="rp-memo"><summary>' + esc(lines[0].slice(0, 40)) + (lines[0].length > 40 ? '…' : '') + '　<small>（続きを見る）</small></summary><div style="white-space:pre-wrap">' + esc(t) + '</div></details>';
+  }
   function rpGet(path){ return path.split('.').reduce(function(o, k){ return o == null ? o : o[k]; }, RP); }
   function rpSet(path, v){ var ks = path.split('.'), o = RP; for(var i = 0; i < ks.length - 1; i++){ if(o[ks[i]] == null) o[ks[i]] = {}; o = o[ks[i]]; } o[ks[ks.length - 1]] = v; }
   function rin(path, type, w){ var v = rpGet(path); return '<input type="' + (type || 'text') + '" data-rp="' + path + '" value="' + (v == null ? '' : esc(v)) + '"' + (w ? ' style="width:' + w + '"' : '') + '>'; }
@@ -946,13 +952,33 @@
       + '<div class="f"><textarea data-rp-text style="min-height:180px" placeholder="例：11月1日（日）&#10;【来客数】3&#10;【買取額】702000円 …">' + esc(RPTEXT) + '</textarea></div>'
       + '<div class="actions"><button class="btn blue" data-bk="rp-parse">読み取る</button>' + (RP ? '<button class="btn ghost small" data-bk="rp-clear">読み取りをやめる</button>' : '') + '</div>';
     if(RP) h += reportPreview();
-    // 持ち帰り・再来店待ちの商談
+    // 失注案件（追客リスト）と登録した日報は、月ごとに折りたためる。長いメモも折りたたむ
     var open_ = []; R.forEach(function(r){ (r.deals || []).forEach(function(d){ if(d.status && d.status !== '成約') open_.push({ date: r.date, d: d }); }); });
-    if(open_.length) h += '<h3>失注案件（追客リスト）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>番号</th><th>来店～退店</th><th>状態</th><th>お品物・詳細</th><th class="num">提示額</th><th class="num">希望額</th><th>メモ</th></tr></thead><tbody>'
-      + open_.map(function(x){ return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.d.no || '') + '</td><td>' + esc(x.d.time || '') + '</td><td><span class="tag new">' + esc(x.d.status) + '</span></td><td>' + esc((x.d.items || []).map(function(i){ return i.name; }).join('、')) + '</td><td class="num">' + yen(x.d.offer) + '</td><td class="num">' + yen(x.d.wish) + '</td><td>' + esc(x.d.note || '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    h += '<h3>登録した日報</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
-      + (R.length ? R.map(function(r){ return '<tr><td>' + esc(r.date) + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td style="white-space:pre-wrap">' + esc([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>'; }).join('') : '<tr><td colspan="7" class="empty">まだ日報はありません</td></tr>')
-      + '</tbody></table></div>';
+    var months = []; R.forEach(function(r){ var k = String(r.date).slice(0, 7); if(months.indexOf(k) < 0) months.push(k); });
+    var isOpen = function(key, def){ return key in RPOPEN ? RPOPEN[key] : def; };
+    var mLabel = function(k){ return k.replace('-', '年') + '月'; };
+    if(open_.length){
+      h += '<h3>失注案件（追客リスト）</h3>';
+      months.forEach(function(k, mi){
+        var L = open_.filter(function(x){ return String(x.date).slice(0, 7) === k; }); if(!L.length) return;
+        h += '<details class="rp-month" data-rpo="lost:' + k + '"' + (isOpen('lost:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '件）</summary>'
+          + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>番号</th><th>来店～退店</th><th>状態</th><th>お品物・詳細</th><th class="num">提示額</th><th class="num">希望額</th><th>メモ</th></tr></thead><tbody>'
+          + L.map(function(x){ return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.d.no || '') + '</td><td>' + esc(x.d.time || '') + '</td><td><span class="tag new">' + esc(x.d.status) + '</span></td><td>' + esc((x.d.items || []).map(function(i){ return i.name; }).join('、')) + '</td><td class="num">' + yen(x.d.offer) + '</td><td class="num">' + yen(x.d.wish) + '</td><td>' + memoCell(x.d.note || '') + '</td></tr>'; }).join('')
+          + '</tbody></table></div></details>';
+      });
+    }
+    h += '<h3>登録した日報</h3>';
+    if(!R.length) h += '<p class="empty">まだ日報はありません</p>';
+    months.forEach(function(k, mi){
+      var L = R.filter(function(r){ return String(r.date).slice(0, 7) === k; });
+      var last = L[0], tot = function(f){ return L.reduce(function(t, r){ return t + Number(r[f] || 0); }, 0); };
+      var mb = last && last.m_buy != null && last.m_buy !== '' ? last.m_buy : tot('buy');
+      h += '<details class="rp-month" data-rpo="rep:' + k + '"' + (isOpen('rep:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '日分・月間買取額 ' + yen(mb) + '）</summary>'
+        + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
+        + L.map(function(r){ return '<tr><td>' + esc(r.date) + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
+          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>'; }).join('')
+        + '</tbody></table></div></details>';
+    });
     return h;
   }
   // レジ（残金）の出入り：買取資金の補充／貸付金（人の名前）／卸先からの入金／経費
@@ -1004,6 +1030,7 @@
     h += '<div class="actions"><button class="btn primary" data-bk="rp-save">この内容で登録する</button></div></div>';
     return h;
   }
+  $('vBook').addEventListener('toggle', function(ev){ var k = ev.target.dataset && ev.target.dataset.rpo; if(k) RPOPEN[k] = ev.target.open; }, true);
   $('vBook').addEventListener('input', function(ev){
     var t = ev.target;
     if(t.hasAttribute('data-rp-text')){ RPTEXT = t.value; return; }
