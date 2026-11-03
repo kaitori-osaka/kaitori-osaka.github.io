@@ -958,11 +958,12 @@
     var months = []; R.forEach(function(r){ var k = String(r.date).slice(0, 7); if(months.indexOf(k) < 0) months.push(k); });
     var isOpen = function(key, def){ return key in RPOPEN ? RPOPEN[key] : def; };
     var mLabel = function(k){ return k.replace('-', '年') + '月'; };
+    var lost = '';   // 失注案件（追客リスト）は画面のいちばん最後に出す
     if(open_.length){
-      h += '<h3>失注案件（追客リスト）</h3>';
+      lost += '<h3>失注案件（追客リスト）</h3>';
       months.forEach(function(k, mi){
         var L = open_.filter(function(x){ return String(x.date).slice(0, 7) === k; }); if(!L.length) return;
-        h += '<details class="rp-month" data-rpo="lost:' + k + '"' + (isOpen('lost:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '件）</summary>'
+        lost += '<details class="rp-month" data-rpo="lost:' + k + '"' + (isOpen('lost:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '件）</summary>'
           + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>番号</th><th>来店～退店</th><th>状態</th><th>お品物・詳細</th><th class="num">提示額</th><th class="num">希望額</th><th>メモ</th></tr></thead><tbody>'
           + L.map(function(x){ return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.d.no || '') + '</td><td>' + esc(x.d.time || '') + '</td><td><span class="tag new">' + esc(x.d.status) + '</span></td><td>' + esc((x.d.items || []).map(function(i){ return i.name; }).join('、')) + '</td><td class="num">' + yen(x.d.offer) + '</td><td class="num">' + yen(x.d.wish) + '</td><td>' + memoCell(x.d.note || '') + '</td></tr>'; }).join('')
           + '</tbody></table></div></details>';
@@ -980,6 +981,7 @@
           + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
         + '</tbody></table></div></details>';
     });
+    h += lost;
     return h;
   }
   // レジ（残金）の出入り：買取資金の補充／貸付金（人の名前）／卸先からの入金／経費
