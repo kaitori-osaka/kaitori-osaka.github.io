@@ -1019,9 +1019,9 @@
     var buyers = (BK.buyers || []).filter(function(b){ return b.active !== false; });
     var hq = buyers.filter(function(b){ return /本部/.test(b.name); })[0];
     var h = '<div class="cust rp"><h3 style="margin-top:0">読み取った内容（直せます）</h3><div class="inline">'
-      + '<label class="f">日付<br>' + rin('date', 'date') + '</label><label class="f">来客数<br>' + rin('visitors', 'number', '6em') + '</label><label class="f">買取額<br>' + rin('buy', 'number') + '</label><label class="f">売値<br>' + rin('sell', 'number') + '</label><label class="f">利益<br>' + rin('profit', 'number') + '</label><label class="f">残金（レジ）<br>' + rin('cash', 'number') + '</label></div>'
-      + '<p class="hint" style="margin:4px 0">「月間」がつくものは、その月の総数（1日から今日まで）です。</p><div class="inline"><label class="f">月間来客数<br>' + rin('month.visitors', 'number', '6em') + '</label><label class="f">月間買取額<br>' + rin('month.buy', 'number') + '</label><label class="f">月間売値<br>' + rin('month.sell', 'number') + '</label><label class="f">月間利益<br>' + rin('month.profit', 'number') + '</label></div>'
-      + '<ul class="rp-chk">' + chk('成約品の買取価格の合計', sumOf(wItems, 'cost'), Number(RP.buy) || 0) + chk('成約品の予定卸値の合計', sumOf(wItems, 'price'), Number(RP.sell) || 0) + chk('売値 − 買取額', (Number(RP.sell) || 0) - (Number(RP.buy) || 0), Number(RP.profit) || 0) + '</ul>'
+      + '<label class="f">日付<br>' + rin('date', 'date') + '</label><label class="f">来客数<br>' + rin('visitors', 'number', '6em') + '</label><label class="f">買取額<br>' + rin('buy', 'number') + '</label><label class="f">売値（予定卸値）<br>' + rin('sell', 'number') + '</label><label class="f">利益（予定利益）<br>' + rin('profit', 'number') + '</label><label class="f">残金（レジ）<br>' + rin('cash', 'number') + '</label></div>'
+      + '<p class="hint" style="margin:4px 0">「月間」がつくものは、その月の総数（1日から今日まで）です。</p><div class="inline"><label class="f">月間来客数<br>' + rin('month.visitors', 'number', '6em') + '</label><label class="f">月間買取額<br>' + rin('month.buy', 'number') + '</label><label class="f">月間売値（予定卸値）<br>' + rin('month.sell', 'number') + '</label><label class="f">月間利益（予定利益）<br>' + rin('month.profit', 'number') + '</label></div>'
+      + '<ul class="rp-chk">' + chk('成約品の買取価格の合計', sumOf(wItems, 'cost'), Number(RP.buy) || 0) + chk('成約品の予定卸値の合計', sumOf(wItems, 'price'), Number(RP.sell) || 0) + chk('予定利益（売値 − 買取額）', (Number(RP.sell) || 0) - (Number(RP.buy) || 0), Number(RP.profit) || 0) + '</ul>'
       + '<h3>お客様ごと（成約した品物は商品管理表に「在庫」で入り、予定卸値は「見込み卸値」として記録します）</h3>';
     // お客様ごと：時間・結果・買取額・予定卸値・予定利益・商品詳細（品目・買取価格・予定卸値・備考）
     (RP.deals || []).forEach(function(d, i){
