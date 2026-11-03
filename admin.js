@@ -742,7 +742,18 @@
   // 買取（仕入）：受付からの成約と、日報で登録した店頭の成約品
   function allBuys(){
     return ROWS.filter(isDeal).map(function(r){ return { id: r.id, d: dealDate(r), no: r.receipt_no, who: r.name, how: KIND[r.kind], st: ST[r.status], ct: r.kind === 'takuhai' ? (r.contract_at ? '電子契約済' : '<span class="tag new">未</span>') : '店頭・対面', amt: dealAmt(r) }; })
-      .concat(((BK && BK.products) || []).filter(function(p){ return /^日報:/.test(p.source || ''); }).map(function(p){ return { d: p.created_at, no: '日報', who: p.name, how: '店頭（日報）', st: '成約', ct: '店頭・対面', amt: Number(p.cost || 0) }; }));
+      .concat(rpBuys());
+  }
+  // 日報で登録した店頭の成約品は、お客様（受付番号）ごとに1行にまとめる
+  function rpBuys(){
+    var G = {}, K = [];
+    ((BK && BK.products) || []).forEach(function(p){
+      var m = /^日報:(\d{4}-\d{2}-\d{2}):([^:]+):/.exec(p.source || ''); if(!m) return;
+      var no = prodNo(p), k = no ? no.slice(0, 8) : m[1] + ':' + m[2];
+      if(!G[k]){ G[k] = { d: m[1], no: no ? no.slice(0, 8) : '', who: String(p.seller || '').replace(/^店頭（日報\s*(.*)）$/, '$1'), items: [], how: '店頭', st: '成約', ct: '', amt: 0 }; K.push(k); }
+      G[k].items.push(p.name); G[k].amt += Number(p.cost || 0);
+    });
+    return K.map(function(k){ return G[k]; });
   }
   function isDeal(r){ return DEAL.indexOf(r.status) >= 0 && dealAmt(r) != null; }
   function dealDate(r){ return r.paid_at || r.answer_at || r.estimate_at || r.created_at; }
@@ -945,7 +956,7 @@
       return '<tr><td>' + k.replace('-', '年') + '月</td><td class="num">' + yen(b) + '</td><td class="num">' + yen(e) + '</td><td class="num' + (e - ec < 0 ? ' minus' : '') + '">' + yen(e - ec) + '</td><td class="num">' + yen(s) + '</td><td class="num">' + yen(f) + '</td><td class="num">' + yen(c) + '</td><td class="num' + (s - f - c < 0 ? ' minus' : '') + '">' + yen(s - f - c) + '</td></tr>';
     }).join('');
     return '<div class="bk-head"><h2>売上台帳</h2><div class="bk-tools"><select data-bf="month">' + ML.map(function(k){ return '<option value="' + k + '"' + (k === m ? ' selected' : '') + '>' + k.replace('-', '年') + '月</option>'; }).join('') + '<option value="all"' + (all ? ' selected' : '') + '>全期間</option></select><button class="btn ghost small" data-bk="ledger-csv">表を書き出す</button></div></div>'
-      + '<div class="kpis kpis5"><div><small>買取</small><b>' + yen(sB) + '</b><small>' + buys.length + '件</small></div>'
+      + '<div class="kpis kpis5"><div><small>買取</small><b>' + yen(sB) + '</b><small>' + buys.length + '件（お客様ごと）</small></div>'
       + '<div><small>卸への売上見込み</small><b>' + yen(sE) + '</b><small>見込み卸値 ' + EX.length + '点</small></div>'
       + '<div><small>卸への売上</small><b>' + yen(sS) + '</b><small>' + sells.length + '点・手数料 ' + yen(sF) + '</small></div>'
       + '<div><small>粗利見込み</small><b class="' + (sEP < 0 ? 'minus' : '') + '">' + yen(sEP) + '</b><small>売上見込み − 買取価格</small></div>'
@@ -957,16 +968,20 @@
           var M = function(k, d, unit){ var x = L && L['m_' + k]; return x == null || x === '' ? (unit ? d + unit : yen(d)) : (unit ? Number(x) + unit : yen(x)); };
           var sub = function(d, unit){ return L ? '<small>登録した ' + RR.length + '日分の合計 ' + (unit ? d + unit : yen(d)) + '</small>' : '<small>日報 ' + RR.length + '日分</small>'; };
           var ttl = L ? '月間' : '日報の';
-          return '<div class="kpis"><div><small>' + ttl + '来客数</small><b>' + M('visitors', v, '人') + '</b>' + sub(v, '人') + '</div><div><small>' + ttl + '買取額</small><b>' + M('buy', b) + '</b>' + sub(b) + '</div><div><small>' + ttl + '売値（見込み）</small><b>' + M('sell', sv) + '</b>' + sub(sv) + '</div><div><small>' + ttl + '利益（見込み）</small><b>' + M('profit', pf) + '</b>' + sub(pf) + '</div></div>' + regKpis(RR); })()
-      + '<h3>買取（仕入）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>受付番号</th><th>売主</th><th>方法</th><th>状態</th><th>契約</th><th class="num">買取金額</th></tr></thead><tbody>'
-      + (buys.length ? buys.map(function(x){ return '<tr' + (x.id ? ' class="click" data-bk="go-case" data-id="' + x.id + '"' : '') + '><td>' + ymd(x.d) + '</td><td>' + esc(x.no) + '</td><td>' + esc(x.who) + '</td><td>' + esc(x.how) + '</td><td>' + esc(x.st) + '</td><td>' + x.ct + '</td><td class="num">' + yen(x.amt) + '</td></tr>'; }).join('') + '<tr class="sum"><td colspan="6">合計</td><td class="num">' + yen(sB) + '</td></tr>' : '<tr><td colspan="7" class="empty">この期間の買取はありません</td></tr>')
+          // 上の5項目と同じ数字は出さず、日報に書かれた月間の数字との照らし合わせだけを1行で出す
+          var mb = Number(L && L.m_buy != null && L.m_buy !== '' ? L.m_buy : b), rb = rpBuys().filter(function(x){ return inM(x.d); }).reduce(function(t, x){ return t + x.amt; }, 0);
+          return '<p class="bk-check">' + (L ? '日報（' + esc(L.date) + '）の月間' : '日報の合計') + '：来客 ' + M('visitors', v, '人') + '・買取額 ' + yen(mb) + '・売値 ' + M('sell', sv) + '・利益 ' + M('profit', pf)
+            + '　<b class="' + (mb === rb ? 'ok' : 'minus') + '">' + (mb === rb ? '店頭の買取と一致 ✓' : '店頭の買取（' + yen(rb) + '）と差 ' + yen(mb - rb) + '（登録していない日報があります）') + '</b></p>' + regKpis(RR); })()
+      + '<h3>買取（仕入）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>受付番号</th><th>お客様・お品物</th><th>方法・状態</th><th class="num">買取金額</th></tr></thead><tbody>'
+      + (buys.length ? buys.map(function(x){ var it = x.items ? x.items[0] + (x.items.length > 1 ? ' 他' + (x.items.length - 1) + '点' : '') : '';
+          return '<tr' + (x.id ? ' class="click" data-bk="go-case" data-id="' + x.id + '"' : '') + ' title="' + esc((x.items || []).join('、')) + '"><td>' + ymd(x.d) + '</td><td>' + esc(x.no) + '</td><td>' + esc([x.who, it].filter(Boolean).join('　')) + '</td><td>' + esc(x.how) + (x.st && x.st !== '成約' ? '・' + esc(x.st) : '') + (x.ct && x.ct !== '店頭・対面' ? '・' + x.ct : '') + '</td><td class="num">' + yen(x.amt) + '</td></tr>'; }).join('') + '<tr class="sum"><td colspan="4">合計（' + buys.length + '件）</td><td class="num">' + yen(sB) + '</td></tr>' : '<tr><td colspan="5" class="empty">この期間の買取はありません</td></tr>')
       + '</tbody></table></div>'
       + '<h3>卸への販売</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>売却日</th><th>卸先</th><th>品名</th><th class="num">買取価格</th><th class="num">売却価格</th><th class="num">手数料</th><th class="num">粗利</th><th>入金</th></tr></thead><tbody>'
       + (sells.length ? sells.map(function(p){ var pr = profit(p); return '<tr><td>' + ymd(p.sold_at) + '</td><td>' + esc(p.buyer || '') + '</td><td>' + esc(p.name) + '</td><td class="num">' + yen(p.cost) + '</td><td class="num">' + yen(p.price) + '</td><td class="num">' + yen(p.fee) + '</td><td class="num' + (pr < 0 ? ' minus' : '') + '">' + yen(pr) + '</td><td>' + (p.paid_in_at ? ymd(p.paid_in_at) : '<span class="tag new">未入金</span>') + '</td></tr>'; }).join('')
         + '<tr class="sum"><td colspan="3">合計</td><td class="num">' + yen(sC) + '</td><td class="num">' + yen(sS) + '</td><td class="num">' + yen(sF) + '</td><td class="num">' + yen(sP) + '</td><td></td></tr>' : '<tr><td colspan="8" class="empty">この期間の売却はありません</td></tr>')
       + '</tbody></table></div>'
       + '<h3>月ごとの集計（直近12か月）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>月</th><th class="num">買取</th><th class="num">卸への売上見込み</th><th class="num">粗利見込み</th><th class="num">卸への売上</th><th class="num">手数料</th><th class="num">売れた物の買取価格</th><th class="num">粗利</th></tr></thead><tbody>' + monthly + '</tbody></table></div>'
-      + '<p class="hint">買取は「成約・振込済・完了」のお申込み（日付は振込日、なければ同意日）と、日報で登録した店頭の成約品です。売上は商品管理表で「売却済」にした商品（日付は売却日）です。</p>';
+      + '<p class="hint">買取は「成約・振込済・完了」のお申込み（日付は振込日、なければ同意日）と、日報で登録した店頭の成約（お客様ごとに1行。品物の一覧は商品管理表）です。売上は商品管理表で「売却済」にした商品（日付は売却日）です。</p>';
   }
 
   // ── 日報（文章で書いた日報を貼り付け → AIが読み取り → 確かめて登録）──
@@ -1035,9 +1050,10 @@
     var last = RR.slice().sort(function(a, b){ return a.date < b.date ? 1 : -1; })[0];
     if(!Object.keys(t).length && !(last && last.cash != null)) return '';
     return '<div class="kpis"><div><small>レジ残金（' + esc(last ? last.date : '') + '）</small><b>' + yen(last && last.cash) + '</b></div>'
-      + '<div><small>買取資金の補充</small><b>' + yen(t['買取資金の補充'] || 0) + '</b></div>'
-      + '<div><small>卸先からの入金（レジへ）</small><b>' + yen(t['卸先からの入金'] || 0) + '</b></div>'
-      + '<div><small>経費（レジから）</small><b>' + yen(Math.abs(t['経費'] || 0)) + '</b></div>'
+      // 0円の項目は出さない
+      + (t['買取資金の補充'] ? '<div><small>買取資金の補充</small><b>' + yen(t['買取資金の補充']) + '</b></div>' : '')
+      + (t['卸先からの入金'] ? '<div><small>卸先からの入金（レジへ）</small><b>' + yen(t['卸先からの入金']) + '</b></div>' : '')
+      + (t['経費'] ? '<div><small>経費（レジから）</small><b>' + yen(Math.abs(t['経費'])) + '</b></div>' : '')
       + (function(){ var rp = 0; RR.forEach(function(r){ movesOf(r).forEach(function(x){ if(placeOf(x) === '金庫') rp += Number(x.amount) || 0; }); }); return rp ? '<div><small>貸付金の返済（金庫から・レジとは関係なし）</small><b>' + yen(rp) + '</b></div>' : ''; })()
       + '<div class="click kpi-btn" data-bk="loan-open" role="button" tabindex="0" title="押すと、いつ・だれの貸付・返済かの一覧が出ます"><small>店への貸付金の残高 ' + (LOANOPEN ? '▲' : '▼') + '</small><b>' + yen(Object.keys(all).reduce(function(s, k){ return s + all[k]; }, 0)) + '</b><small>' + esc(Object.keys(all).map(function(k){ return k + ' ' + yen(all[k]); }).join('・')) + '</small></div></div>'
       + (LOANOPEN ? loanList() : '');
@@ -1186,7 +1202,7 @@
       if(act === 'buyer-csv'){ csvDl('卸先管理帳', ['卸先ID', '名称', '種別', '担当者', '電話', 'メール', '住所', '取扱品目', '手数料率', '支払条件', '古物商許可番号', '取引中', 'メモ'], (BK.buyers || []).map(function(x){ return [x.id, x.name, x.type, x.person, x.tel, x.email, x.address, x.items, x.fee_rate, x.terms, x.license, x.active === false ? '休止' : '取引中', x.memo]; })); return; }
       if(act === 'ledger-csv'){
         var m = BF.month || ym(new Date()), all = m === 'all', inM = function(s){ return all || ym(s) === m; };
-        var rows = allBuys().filter(function(x){ return inM(x.d); }).map(function(x){ return ['買取（仕入）', ymd(x.d), x.no, x.who, x.how, '', x.amt, '', '', '']; })
+        var rows = allBuys().filter(function(x){ return inM(x.d); }).map(function(x){ return ['買取（仕入）', ymd(x.d), x.no, [x.who, (x.items || []).join('、')].filter(Boolean).join(' '), x.how, '', x.amt, '', '', '']; })
           .concat((BK.products || []).filter(function(p){ return p.status === 'sold' && inM(p.sold_at); }).map(function(p){ return ['卸への販売', ymd(p.sold_at), p.receipt_no, p.name, p.buyer, p.cost, '', p.price, p.fee, profit(p)]; }));
         csvDl('売上台帳_' + (all ? '全期間' : m), ['区分', '日付', '受付番号', '売主／品名', '方法／卸先', '買取価格（原価）', '買取金額', '売却価格', '手数料', '粗利'], rows); return;
       }

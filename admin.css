@@ -174,3 +174,8 @@ body.adm{padding-bottom:0;background:#F6F8FC}
 .msg.warn{background:#fff7d6;color:#7a5b00;border:1px solid #f0d36b}
 .kpi-btn{cursor:pointer;outline:2px solid transparent}.kpi-btn:hover,.kpi-btn:focus{outline-color:#93c5fd}
 .rp-lost{margin-top:16px}.rp-lost>summary small{font-weight:400;color:#64748b}
+
+/* 売上台帳：日報の月間との照らし合わせ */
+.bk-check{margin:4px 0 10px;font-size:13px;color:#475569}
+.bk-check .ok{color:#15803d}
+.bk-check .minus{color:#b91c1c}
