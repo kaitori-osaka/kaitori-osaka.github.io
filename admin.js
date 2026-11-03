@@ -1015,7 +1015,7 @@
       h += '<details class="rp-month" data-rpo="rep:' + k + '"' + (isOpen('rep:' + k, mi === 0) ? ' open' : '') + '><summary>' + mLabel(k) + '（' + L.length + '日分・月間買取額 ' + yen(mb) + '）</summary>'
         + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
         + L.map(function(r){ return '<tr><td>' + esc(r.date) + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
-          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
+          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + (placeOf(x) === '金庫' ? '（金庫）' : '') + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
         + '</tbody></table></div></details>';
     });
     h += lost;
@@ -1023,6 +1023,8 @@
   }
   // レジ（残金）の出入り：買取資金の補充／貸付金（人の名前）／卸先からの入金／経費
   function movesOf(r){ return Array.isArray(r.moves) ? r.moves : []; }
+  // 貸付金の返済は金庫から（レジとは関係なし）
+  function placeOf(x){ return x.place || (/^貸付金の返済/.test(x.kind) ? '金庫' : 'レジ'); }
   function regKpis(RR){
     var t = {};
     RR.forEach(function(r){ movesOf(r).forEach(function(x){ var k = /^貸付金/.test(x.kind) ? '貸付金' : x.kind; t[k] = (t[k] || 0) + (Number(x.amount) || 0) * (x.sign || 1); }); });
@@ -1034,11 +1036,12 @@
       + '<div><small>買取資金の補充</small><b>' + yen(t['買取資金の補充'] || 0) + '</b></div>'
       + '<div><small>卸先からの入金（レジへ）</small><b>' + yen(t['卸先からの入金'] || 0) + '</b></div>'
       + '<div><small>経費（レジから）</small><b>' + yen(Math.abs(t['経費'] || 0)) + '</b></div>'
+      + (function(){ var rp = 0; RR.forEach(function(r){ movesOf(r).forEach(function(x){ if(placeOf(x) === '金庫') rp += Number(x.amount) || 0; }); }); return rp ? '<div><small>貸付金の返済（金庫から・レジとは関係なし）</small><b>' + yen(rp) + '</b></div>' : ''; })()
       + '<div><small>店への貸付金の残高</small><b>' + yen(Object.keys(all).reduce(function(s, k){ return s + all[k]; }, 0)) + '</b><small>' + esc(Object.keys(all).map(function(k){ return k + ' ' + yen(all[k]); }).join('・')) + '</small></div></div>';
   }
   function movesTable(M){
-    return '<div class="table-wrap"><table class="bk-table"><thead><tr><th>種類</th><th class="num">金額</th><th>日報の記載</th></tr></thead><tbody>'
-      + M.map(function(x){ return '<tr><td>' + esc(x.kind) + '</td><td class="num' + (x.sign < 0 ? ' minus' : '') + '">' + (x.sign < 0 ? '−' : '+') + yen(x.amount) + '</td><td>' + esc(x.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    return '<div class="table-wrap"><table class="bk-table"><thead><tr><th>種類</th><th>どこのお金</th><th class="num">金額</th><th>日報の記載</th></tr></thead><tbody>'
+      + M.map(function(x){ return '<tr><td>' + esc(x.kind) + '</td><td>' + (placeOf(x) === '金庫' ? '<span class="tag">金庫（レジとは関係なし）</span>' : 'レジ') + '</td><td class="num' + (x.sign < 0 ? ' minus' : '') + '">' + (x.sign < 0 ? '−' : '+') + yen(x.amount) + '</td><td>' + esc(x.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
   // 登録した日報の「お客様ごと」（時間・結果・買取額・予定卸値・予定利益・商品詳細）
   function dealsRow(r, isOpen){
@@ -1086,7 +1089,7 @@
         + (n.items || []).map(function(x, j){ var q = p + '.items.' + j; return '<tr><td>' + rin(q + '.date', 'date') + '</td><td>' + rin(q + '.name', 'text', '100%') + '</td><td class="num">' + rin(q + '.expect', 'number', '7em') + '</td><td class="num">' + rin(q + '.price', 'number', '7em') + '</td><td>' + rin(q + '.note', 'text', '8em') + '</td></tr>'; }).join('')
         + '</tbody></table></div>';
     });
-    if(movesOf(RP).length) h += '<h3>レジ（残金）の出入り</h3><p class="hint">「現金〇〇円補充」＝買取資金の補充、「名前＋補充」＝その人から店への貸付金、「卸先名＋補充」＝その日に売った代金をレジに入れたもの、として分けています。</p>' + movesTable(movesOf(RP));
+    if(movesOf(RP).length) h += '<h3>お金の出入り（レジ・金庫）</h3><p class="hint">「現金〇〇円補充」＝買取資金の補充、「名前＋補充」＝その人から店への貸付金、「卸先名＋補充」＝その日に売った代金をレジに入れたもの、「名前＋返金」＝金庫からの貸付金の返済（レジとは関係なし）、として分けています。</p>' + movesTable(movesOf(RP));
     if((RP.notes || []).length) h += '<h3>メモ</h3><ul>' + (RP.notes || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
     h += '<div class="actions"><button class="btn primary" data-bk="rp-save">この内容で登録する</button></div></div>';
     return h;
