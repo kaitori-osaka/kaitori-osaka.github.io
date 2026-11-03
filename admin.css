@@ -169,3 +169,4 @@ body.adm{padding-bottom:0;background:#F6F8FC}
 .rp-sub summary{cursor:pointer;color:#1d4ed8;font-size:.9em}
 .rp-mini{border-collapse:collapse;width:100%;font-size:.9em}.rp-mini td{border-bottom:1px dotted #cbd5e1;padding:2px 6px}
 .rp-items th:first-child{width:40%}.rp-items th:nth-child(4){width:25%}.rp-items th:last-child{width:3em}
+.bk-table .nowrap{white-space:nowrap}
