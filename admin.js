@@ -1067,7 +1067,7 @@
       var p = 'deals.' + i, its = d.items || [], c = sumOf(its, 'cost'), pr = sumOf(its, 'price');
       h += '<div class="rp-deal st-' + esc(d.status || '') + '"><div class="rp-dh">'
         + '<b class="rp-no">' + esc(d.no || (i + 1)) + '<br><small style="font-size:.5em;font-weight:400">' + (RP.date ? custNoOf(RP.date, d, i) : '') + '</small></b>'
-        + '<label>時間<br>' + rin(p + '.time', 'text', '8.5em') + '</label>'
+        + '<label title="一度預けて退店し、もう一度来店した場合は「16:21~16:22、17:15~17:35」のように2つ書けます">時間（来店～退店。2回来店は「、」で区切る）<br>' + rin(p + '.time', 'text', '13em') + '</label>'
         + '<label>結果<br><select data-rp="' + p + '.status">' + DEAL_ST.concat(d.status && DEAL_ST.indexOf(d.status) < 0 ? [d.status] : []).map(function(x){ return '<option' + (x === d.status ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></label>'
         + '<div class="rp-sum"><small>買取額</small><b>' + yen(c) + '</b></div><div class="rp-sum"><small>予定卸値</small><b>' + yen(pr) + '</b></div><div class="rp-sum"><small>予定利益</small><b class="' + (pr - c < 0 ? 'minus' : '') + '">' + (its.some(function(x){ return x.cost != null && x.cost !== ''; }) ? yen(pr - c) : '－') + '</b></div>'
         + (d.status !== '成約' ? '<label>提示額<br>' + rin(p + '.offer', 'number', '7em') + '</label><label>希望額<br>' + rin(p + '.wish', 'number', '7em') + '</label>' : '')
