@@ -895,16 +895,24 @@
     var sS = sells.reduce(function(t, p){ return t + Number(p.price || 0); }, 0), sF = sells.reduce(function(t, p){ return t + Number(p.fee || 0); }, 0);
     var sC = sells.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0), sP = sS - sF - sC;
     var sIn = sells.reduce(function(t, p){ return t + Number(p.paid_in || 0); }, 0);
+    // 見込み：その期間に買い取った品物（買取価格あり）の「見込み卸値」（金額が出ている卸先に売った場合の価格）と、その買取価格との差
+    var expOf = function(test){ return (BK.products || []).filter(function(p){ return p.expect != null && p.expect !== '' && p.cost != null && test(p.created_at); }); };
+    var EX = expOf(inM), sE = EX.reduce(function(t, p){ return t + Number(p.expect || 0); }, 0), sEC = EX.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0), sEP = sE - sEC;
     var months = {}; allBuys().forEach(function(x){ months[ym(x.d)] = 1; }); (BK.products || []).forEach(function(p){ if(p.sold_at) months[ym(p.sold_at)] = 1; }); months[ym(new Date())] = 1;
     var ML = Object.keys(months).sort().reverse();
     var monthly = ML.slice(0, 12).map(function(k){
       var b = allBuys().filter(function(x){ return ym(x.d) === k; }).reduce(function(t, x){ return t + x.amt; }, 0);
       var S = (BK.products || []).filter(function(p){ return p.status === 'sold' && ym(p.sold_at) === k; });
       var s = S.reduce(function(t, p){ return t + Number(p.price || 0); }, 0), f = S.reduce(function(t, p){ return t + Number(p.fee || 0); }, 0), c = S.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0);
-      return '<tr><td>' + k.replace('-', '年') + '月</td><td class="num">' + yen(b) + '</td><td class="num">' + yen(s) + '</td><td class="num">' + yen(f) + '</td><td class="num">' + yen(c) + '</td><td class="num' + (s - f - c < 0 ? ' minus' : '') + '">' + yen(s - f - c) + '</td></tr>';
+      var E = expOf(function(d){ return ym(d) === k; }), e = E.reduce(function(t, p){ return t + Number(p.expect || 0); }, 0), ec = E.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0);
+      return '<tr><td>' + k.replace('-', '年') + '月</td><td class="num">' + yen(b) + '</td><td class="num">' + yen(e) + '</td><td class="num' + (e - ec < 0 ? ' minus' : '') + '">' + yen(e - ec) + '</td><td class="num">' + yen(s) + '</td><td class="num">' + yen(f) + '</td><td class="num">' + yen(c) + '</td><td class="num' + (s - f - c < 0 ? ' minus' : '') + '">' + yen(s - f - c) + '</td></tr>';
     }).join('');
     return '<div class="bk-head"><h2>売上台帳</h2><div class="bk-tools"><select data-bf="month">' + ML.map(function(k){ return '<option value="' + k + '"' + (k === m ? ' selected' : '') + '>' + k.replace('-', '年') + '月</option>'; }).join('') + '<option value="all"' + (all ? ' selected' : '') + '>全期間</option></select><button class="btn ghost small" data-bk="ledger-csv">表を書き出す</button></div></div>'
-      + '<div class="kpis"><div><small>買取（仕入）</small><b>' + yen(sB) + '</b><small>' + buys.length + '件</small></div><div><small>卸への売上</small><b>' + yen(sS) + '</b><small>' + sells.length + '点・手数料 ' + yen(sF) + '</small></div><div><small>粗利（売上－手数料－買取価格）</small><b class="' + (sP < 0 ? 'minus' : '') + '">' + yen(sP) + '</b><small>入金済み ' + yen(sIn) + (sells.some(function(p){ return p.cost == null; }) ? '・買取価格が未入力の ' + sells.filter(function(p){ return p.cost == null; }).length + '点は0円で計算' : '') + '</small></div></div>'
+      + '<div class="kpis kpis5"><div><small>買取</small><b>' + yen(sB) + '</b><small>' + buys.length + '件</small></div>'
+      + '<div><small>卸への売上見込み</small><b>' + yen(sE) + '</b><small>見込み卸値 ' + EX.length + '点</small></div>'
+      + '<div><small>卸への売上</small><b>' + yen(sS) + '</b><small>' + sells.length + '点・手数料 ' + yen(sF) + '</small></div>'
+      + '<div><small>粗利見込み</small><b class="' + (sEP < 0 ? 'minus' : '') + '">' + yen(sEP) + '</b><small>売上見込み − 買取価格</small></div>'
+      + '<div><small>粗利</small><b class="' + (sP < 0 ? 'minus' : '') + '">' + yen(sP) + '</b><small>売上 − 手数料 − 買取価格<br>入金済み ' + yen(sIn) + (sells.some(function(p){ return p.cost == null; }) ? '<br>買取価格が未入力の ' + sells.filter(function(p){ return p.cost == null; }).length + '点は0円で計算' : '') + '</small></div></div>'
       + (function(){ var RR = (BK.reports || []).filter(function(r){ return all || String(r.date).slice(0, 7) === m; }); if(!RR.length) return '';
           var b = RR.reduce(function(t, r){ return t + Number(r.buy || 0); }, 0), sv = RR.reduce(function(t, r){ return t + Number(r.sell || 0); }, 0), pf = RR.reduce(function(t, r){ return t + Number(r.profit || 0); }, 0), v = RR.reduce(function(t, r){ return t + Number(r.visitors || 0); }, 0);
           // 「月間〇〇」は日報に書かれたその月の総数。1か月を選んだときは、その月の最後の日報の月間の数字を出す（登録した日の合計は小さく併記）
@@ -920,7 +928,7 @@
       + (sells.length ? sells.map(function(p){ var pr = profit(p); return '<tr><td>' + ymd(p.sold_at) + '</td><td>' + esc(p.buyer || '') + '</td><td>' + esc(p.name) + '</td><td class="num">' + yen(p.cost) + '</td><td class="num">' + yen(p.price) + '</td><td class="num">' + yen(p.fee) + '</td><td class="num' + (pr < 0 ? ' minus' : '') + '">' + yen(pr) + '</td><td>' + (p.paid_in_at ? ymd(p.paid_in_at) : '<span class="tag new">未入金</span>') + '</td></tr>'; }).join('')
         + '<tr class="sum"><td colspan="3">合計</td><td class="num">' + yen(sC) + '</td><td class="num">' + yen(sS) + '</td><td class="num">' + yen(sF) + '</td><td class="num">' + yen(sP) + '</td><td></td></tr>' : '<tr><td colspan="8" class="empty">この期間の売却はありません</td></tr>')
       + '</tbody></table></div>'
-      + '<h3>月ごとの集計（直近12か月）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>月</th><th class="num">買取（仕入）</th><th class="num">卸への売上</th><th class="num">手数料</th><th class="num">売れた物の買取価格</th><th class="num">粗利</th></tr></thead><tbody>' + monthly + '</tbody></table></div>'
+      + '<h3>月ごとの集計（直近12か月）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>月</th><th class="num">買取</th><th class="num">卸への売上見込み</th><th class="num">粗利見込み</th><th class="num">卸への売上</th><th class="num">手数料</th><th class="num">売れた物の買取価格</th><th class="num">粗利</th></tr></thead><tbody>' + monthly + '</tbody></table></div>'
       + '<p class="hint">買取は「成約・振込済・完了」のお申込み（日付は振込日、なければ同意日）と、日報で登録した店頭の成約品です。売上は商品管理表で「売却済」にした商品（日付は売却日）です。</p>';
   }
 
