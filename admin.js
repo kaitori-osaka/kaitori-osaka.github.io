@@ -1056,7 +1056,7 @@
   }
   // ── 日報（文章で書いた日報を貼り付け → AIが読み取り → 確かめて登録）──
   var RP = null, RPTEXT = '', RPOPEN = {};
-  var DEAL_ST = ['成約', '失注', '預り', '基準外'];
+  var DEAL_ST = ['成約', '失注', '預り', '基準外', '査定のみ', '相談のみ'];
   // 長いメモは1行目だけ出して、押すと全部見える
   function memoCell(t){
     t = String(t || ''); var lines = t.split('\n');
