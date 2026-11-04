@@ -771,6 +771,9 @@
     try{ await loadBooks(); drawBook(); }catch(e){ say(e.message); }
   }
   $('views').addEventListener('click', function(ev){ var b = ev.target.closest('[data-view]'); if(b) showView(b.dataset.view); });
+  function isAdm(){ return !!(SESS && SESS.admin); }
+  var DUP = null, DSEL = {};
+  function admBadge(){ return isAdm() ? '<span class="tag ok adm-badge">管理者：' + esc(SESS.name) + '（修正・取り消しができます）</span>' : '<span class="adm-note">登録した日報・金額を直せるのは管理者（中嶋）だけです</span>'; }
   function drawBook(){
     if(!BK) return;
     var f = { customers: customersView, products: productsView, buyers: buyersView, ledger: ledgerView, report: reportView }[VIEW];
@@ -887,12 +890,12 @@
     return h;
   }
   function prodEdit(p, bopt){
-    var v = function(k){ return p[k] == null ? '' : esc(p[k]); };
-    return '<div class="cust" data-prod-edit="' + p.id + '"><div class="inline">'
-      + '<label class="f">品名<br><input type="text" data-pe="name" value="' + v('name') + '" maxlength="120" style="min-width:260px"></label>'
-      + '<label class="f">点数<br><input type="number" data-pe="qty" value="' + v('qty') + '" min="1"></label>'
-      + '<label class="f">買取価格（円）<br><input type="number" data-pe="cost" value="' + v('cost') + '" min="0"></label>'
-      + '<label class="f">見込み卸値（円）<br><input type="number" data-pe="expect" value="' + v('expect') + '" min="0"></label>'
+    var v = function(k){ return p[k] == null ? '' : esc(p[k]); }, ro = isAdm() ? '' : ' disabled title="直せるのは管理者（中嶋）だけです"';
+    return '<div class="cust" data-prod-edit="' + p.id + '">' + (isAdm() ? '' : '<p class="hint" style="margin:0 0 6px">品名・点数・買取価格・見込み卸値を直せるのは管理者（中嶋）だけです。</p>') + '<div class="inline">'
+      + '<label class="f">品名<br><input type="text" data-pe="name" value="' + v('name') + '" maxlength="120" style="min-width:260px"' + ro + '></label>'
+      + '<label class="f">点数<br><input type="number" data-pe="qty" value="' + v('qty') + '" min="1"' + ro + '></label>'
+      + '<label class="f">買取価格（円）<br><input type="number" data-pe="cost" value="' + v('cost') + '" min="0"' + ro + '></label>'
+      + '<label class="f">見込み卸値（円）<br><input type="number" data-pe="expect" value="' + v('expect') + '" min="0"' + ro + '></label>'
       + '<label class="f">状態<br><select data-pe="status">' + Object.keys(BK.productSt).map(function(k){ return '<option value="' + k + '"' + (k === p.status ? ' selected' : '') + '>' + BK.productSt[k] + '</option>'; }).join('') + '</select></label>'
       + '<label class="f">卸先<br><select data-pe="buyer_id">' + bopt.replace('value="' + p.buyer_id + '"', 'value="' + p.buyer_id + '" selected') + '</select></label>'
       + '<label class="f">出品日<br><input type="date" data-pe="listed_at" value="' + ymd(p.listed_at) + '"></label>'
@@ -955,7 +958,7 @@
       var E = expOf(function(d){ return ym(d) === k; }), e = E.reduce(function(t, p){ return t + Number(p.expect || 0); }, 0), ec = E.reduce(function(t, p){ return t + Number(p.cost || 0); }, 0);
       return '<tr><td>' + k.replace('-', '年') + '月</td><td class="num">' + yen(b) + '</td><td class="num">' + yen(e) + '</td><td class="num' + (e - ec < 0 ? ' minus' : '') + '">' + yen(e - ec) + '</td><td class="num">' + yen(s) + '</td><td class="num">' + yen(f) + '</td><td class="num">' + yen(c) + '</td><td class="num' + (s - f - c < 0 ? ' minus' : '') + '">' + yen(s - f - c) + '</td></tr>';
     }).join('');
-    return '<div class="bk-head"><h2>売上台帳</h2><div class="bk-tools"><select data-bf="month">' + ML.map(function(k){ return '<option value="' + k + '"' + (k === m ? ' selected' : '') + '>' + k.replace('-', '年') + '月</option>'; }).join('') + '<option value="all"' + (all ? ' selected' : '') + '>全期間</option></select><button class="btn ghost small" data-bk="ledger-csv">表を書き出す</button></div></div>'
+    return '<div class="bk-head"><h2>売上台帳</h2><div class="bk-tools"><select data-bf="month">' + ML.map(function(k){ return '<option value="' + k + '"' + (k === m ? ' selected' : '') + '>' + k.replace('-', '年') + '月</option>'; }).join('') + '<option value="all"' + (all ? ' selected' : '') + '>全期間</option></select><button class="btn ghost small" data-bk="ledger-csv">表を書き出す</button>' + admBadge() + '</div></div>'
       + '<div class="kpis kpis5"><div><small>買取</small><b>' + yen(sB) + '</b><small>' + buys.length + '件（お客様ごと）</small></div>'
       + '<div><small>卸への売上見込み</small><b>' + yen(sE) + '</b><small>見込み卸値 ' + EX.length + '点</small></div>'
       + '<div><small>卸への売上</small><b>' + yen(sS) + '</b><small>' + sells.length + '点・手数料 ' + yen(sF) + '</small></div>'
@@ -981,7 +984,41 @@
         + '<tr class="sum"><td colspan="3">合計</td><td class="num">' + yen(sC) + '</td><td class="num">' + yen(sS) + '</td><td class="num">' + yen(sF) + '</td><td class="num">' + yen(sP) + '</td><td></td></tr>' : '<tr><td colspan="8" class="empty">この期間の売却はありません</td></tr>')
       + '</tbody></table></div>'
       + '<h3>月ごとの集計（直近12か月）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>月</th><th class="num">買取</th><th class="num">卸への売上見込み</th><th class="num">粗利見込み</th><th class="num">卸への売上</th><th class="num">手数料</th><th class="num">売れた物の買取価格</th><th class="num">粗利</th></tr></thead><tbody>' + monthly + '</tbody></table></div>'
-      + '<p class="hint">買取は「成約・振込済・完了」のお申込み（日付は振込日、なければ同意日）と、日報で登録した店頭の成約（お客様ごとに1行。品物の一覧は商品管理表）です。売上は商品管理表で「売却済」にした商品（日付は売却日）です。</p>';
+      + '<p class="hint">買取は「成約・振込済・完了」のお申込み（日付は振込日、なければ同意日）と、日報で登録した店頭の成約（お客様ごとに1行。品物の一覧は商品管理表）です。売上は商品管理表で「売却済」にした商品（日付は売却日）です。</p>'
+      + (isAdm() ? dupView() : '');
+  }
+  // 重複の点検（管理者だけ）。消さずに「片付けたデータ」シートへ移す
+  function dupView(){
+    var h = '<h3>重複の点検（管理者）</h3><div class="actions"><button class="btn blue" data-bk="adm-dup-scan">' + (DUP ? 'もう一度点検する' : '重複を点検する') + '</button>'
+      + (DUP && DUP.groups.length ? '<button class="btn primary" data-bk="adm-dup-go">チェックしたものを片付ける（' + Object.keys(DSEL).filter(function(k){ return DSEL[k]; }).length + '件）</button>' : '') + '</div>';
+    if(!DUP) return h + '<p class="hint">同じ日報が2行ある・同じ品物が2回入っている、などを探します。片付けたものは消さずに、スプレッドシートの「片付けたデータ」に移します。</p>';
+    if(!DUP.groups.length) return h + '<p class="msg ok">重複は見つかりませんでした（商品 ' + DUP.products + '点・日報 ' + DUP.reports + '日分を点検）。</p>';
+    h += '<p class="hint">商品 ' + DUP.products + '点・日報 ' + DUP.reports + '日分を点検し、' + DUP.groups.length + 'か所の重複が見つかりました。初めは、各グループのいちばん上（売れている物・先に入った物）を残し、残りにチェックを入れています。</p>';
+    var st = BK.productSt || {};
+    DUP.groups.forEach(function(g, gi){
+      h += '<div class="dup-g"><b>' + esc(g.label) + '</b><div class="table-wrap"><table class="bk-table"><thead><tr><th>片付ける</th>'
+        + (g.kind === '日報' ? '<th>行</th><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">お客様</th><th>登録者</th><th>更新日時</th>' : '<th>行</th><th>登録日</th><th>品名</th><th class="num">買取価格</th><th class="num">見込み卸値</th><th>状態</th><th class="num">売却価格</th><th>売主・取込元</th>')
+        + '</tr></thead><tbody>'
+        + g.rows.map(function(x){ var k = g.kind === '日報' ? 'r:' + x.row + ':' + x.date : 'p:' + x.id;
+            return '<tr><td><input type="checkbox" data-dsel="' + esc(k) + '"' + (DSEL[k] ? ' checked' : '') + '></td><td>' + x.row + '</td>'
+              + (g.kind === '日報' ? '<td>' + esc(x.date) + '</td><td class="num">' + (x.visitors == null ? '' : x.visitors) + '</td><td class="num">' + yen(x.buy) + '</td><td class="num">' + x.deals + '</td><td>' + esc(x.author) + '</td><td>' + esc(String(x.updated_at || '').slice(0, 16).replace('T', ' ')) + '</td>'
+                : '<td>' + esc(x.date) + '</td><td>' + esc(x.name) + '</td><td class="num">' + yen(x.cost) + '</td><td class="num">' + yen(x.expect) + '</td><td>' + esc(st[x.status] || x.status || '') + '</td><td class="num">' + yen(x.price) + '</td><td><small>' + esc(x.seller) + '<br>' + esc(x.source) + '</small></td>')
+              + '</tr>'; }).join('')
+        + '</tbody></table></div></div>';
+    });
+    return h;
+  }
+  // 点検の結果から、初めに片付ける候補（各グループで残す1つ以外）を選ぶ
+  function dupDefaults(){
+    DSEL = {};
+    var rank = { sold: 0, listed: 1, stock: 2 };
+    DUP.groups.forEach(function(g){
+      var L = g.rows.slice();
+      if(g.kind === '日報') L.sort(function(a, b){ return a.row - b.row; });
+      else L.sort(function(a, b){ return ((rank[a.status] == null ? 3 : rank[a.status]) - (rank[b.status] == null ? 3 : rank[b.status])) || (a.row - b.row); });
+      g.rows = L;
+      L.slice(1).forEach(function(x){ DSEL[g.kind === '日報' ? 'r:' + x.row + ':' + x.date : 'p:' + x.id] = true; });
+    });
   }
 
   // 日報の登録もれ・月間の数字の確認（前の日の月間＋その日の数字＝その日の月間）
@@ -1033,7 +1070,7 @@
   function chk(label, a, b){ var ok = a === b; return '<li class="' + (ok ? 'ok' : 'ng') + '">' + (ok ? '✓ ' : '⚠ ') + label + '：' + yen(a) + (ok ? '' : ' ／ 日報の記載 ' + yen(b)) + '</li>'; }
   function reportView(){
     var R = (BK.reports || []).slice().sort(function(a, b){ return a.date < b.date ? 1 : -1; });
-    var h = '<div class="bk-head"><h2>日報</h2></div>'
+    var h = '<div class="bk-head"><h2>日報</h2><div class="bk-tools">' + admBadge() + '</div></div>'
       + '<p class="hint">いつもの日報の文章をそのまま貼り付けて「読み取る」を押してください（いつもの書き方ならすぐ読み取れます）。読み取った内容を確かめてから「登録する」を押すと、日報・商品管理表（成約品は在庫・見込み卸値つき、ネット販売・オークションの売上は売却済）・卸先・売上台帳に入ります。同じ日報を2回登録しても、商品は二重に入りません。</p>'
       + '<div class="f"><textarea data-rp-text style="min-height:180px" placeholder="例：11月1日（日）&#10;【来客数】3&#10;【買取額】702000円 …">' + esc(RPTEXT) + '</textarea></div>'
       + '<div class="actions"><button class="btn blue" data-bk="rp-parse">読み取る</button><button class="btn ghost small" data-bk="rp-parse-ai" title="いつもと違う書き方で読めないときだけ。1〜3分かかります">AIでも読んでみる（1〜3分）</button>' + (RP ? '<button class="btn ghost small" data-bk="rp-clear">読み取りをやめる</button>' : '') + '</div>';
@@ -1071,7 +1108,8 @@
         + (ck.miss.length ? '　<span class="tag new">未登録 ' + ck.miss.length + '日</span>' : '') + (nBad ? '　<span class="tag new">月間の数字が合わない ' + nBad + '日</span>' : '') + '</summary>'
         + rpCalendar(k, L, ck)
         + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
-        + L.map(function(r){ return '<tr' + (ck.bad[r.date] ? ' class="rp-bad"' : '') + '><td>' + esc(r.date) + (ck.bad[r.date] ? '<br><small class="minus">⚠ ' + esc(ck.bad[r.date]) + '</small>' : '') + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
+        + L.map(function(r){ return '<tr' + (ck.bad[r.date] ? ' class="rp-bad"' : '') + '><td>' + esc(r.date) + (ck.bad[r.date] ? '<br><small class="minus">⚠ ' + esc(ck.bad[r.date]) + '</small>' : '')
+          + (isAdm() ? '<div class="adm-btns"><button class="btn ghost small" data-bk="adm-rp-edit" data-date="' + esc(r.date) + '">直す</button><button class="btn ghost small danger" data-bk="adm-rp-del" data-date="' + esc(r.date) + '">取り消す</button></div>' : '') + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
           + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + (placeOf(x) === '金庫' ? '（金庫）' : '') + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
         + '</tbody></table></div></details>';
     });
@@ -1205,10 +1243,11 @@
         if(!RP.date) throw new Error('日付を入れてください');
         var ta2 = $('vBook').querySelector('[data-rp-text]'); if(ta2 && ta2.value) RPTEXT = ta2.value;
         var dup = (BK.reports || []).some(function(r){ return r.date === RP.date; });
+        if(dup && !isAdm()) throw new Error(RP.date + ' の日報はもう登録されています。登録した日報を直せるのは管理者（中嶋）だけです');
         if(!confirm(dup ? RP.date + ' の日報はすでに登録されています。この内容で上書きしますか？\n（品物は二重に入りません。日報の数字・お客様・メモはこの内容に置き換わります）' : RP.date + ' の日報を登録します。よろしいですか？')) throw null;
         b.textContent = '登録しています…';
         var res = await call('staffReportSave', { report: RP, text: RPTEXT, buyerId: bsel ? bsel.value : '', actor: actor() });
-        say(res.date + ' の日報を登録しました（商品 ' + res.added + '点を追加' + (res.matched ? '・在庫の ' + res.matched + '点を売却済に' : '') + (res.skipped ? '・登録済みの ' + res.skipped + '点はそのまま' : '') + '）', 'ok');
+        say(res.date + ' の日報を登録しました（商品 ' + res.added + '点を追加' + (res.matched ? '・在庫の ' + res.matched + '点を売却済に' : '') + (res.skipped ? '・登録済みの ' + res.skipped + '点はそのまま' : '') + (res.redo ? '・直す前の品物 ' + res.redo + '点は片付けて入れ直し' : '') + '）', 'ok');
         RP = null; RPTEXT = ''; await loadBooks(); drawBook(); return;
       }
     }catch(e){ if(e) say(e.message); }
@@ -1225,6 +1264,7 @@
     var t = ev.target;
     if(t.dataset.bf && t.tagName === 'SELECT'){ BF[t.dataset.bf] = t.value; BOPEN = null; drawBook(); }
     if(t.dataset.sel){ BSEL[t.dataset.sel] = t.checked; drawBook(); }
+    if(t.dataset.dsel){ DSEL[t.dataset.dsel] = t.checked; drawBook(); }
     if(t.dataset.bk === 'sel-all'){ $('vBook').querySelectorAll('[data-sel]').forEach(function(c){ BSEL[c.dataset.sel] = t.checked; }); drawBook(); }
   });
   $('vBook').addEventListener('click', async function(ev){
@@ -1281,6 +1321,26 @@
         var pend = ROWS.filter(function(r){ return Array.isArray(r.lines) && r.lines.length && (r.status === 'paid' || r.status === 'done' || (r.status === 'accepted' && (r.kind === 'shop' || r.kind === 'visit'))) && !(BK.products || []).some(function(p){ return p.app_id === r.id; }); });
         var n = 0; for(var j = 0; j < pend.length; j++){ var rs = await call('staffProductsFromApp', { id: pend[j].id, actor: who }); n += rs.added; }
         say(n + '点を商品管理表に取り込みました', 'ok');
+      }
+      if(act === 'adm-dup-scan'){ DUP = await call('adminDupScan', {}); dupDefaults(); drawBook(); say(DUP.groups.length ? DUP.groups.length + 'か所の重複が見つかりました' : '重複は見つかりませんでした', 'ok'); return; }
+      if(act === 'adm-dup-go'){
+        var ks = Object.keys(DSEL).filter(function(k){ return DSEL[k]; }); if(!ks.length) throw new Error('片付けるものにチェックを入れてください');
+        var prods = ks.filter(function(k){ return k.indexOf('p:') === 0; }).map(function(k){ return k.slice(2); });
+        var reps = ks.filter(function(k){ return k.indexOf('r:') === 0; }).map(function(k){ var a = k.split(':'); return { row: Number(a[1]), date: a[2] }; });
+        if(!confirm('商品 ' + prods.length + '点・日報 ' + reps.length + '行を片付けます。\n（消さずに、スプレッドシートの「片付けたデータ」に移します）よろしいですか？')){ b.disabled = false; return; }
+        var ra = await call('adminArchive', { products: prods, reports: reps }); say(ra.archived + '件を片付けました', 'ok');
+        await loadBooks(); DUP = await call('adminDupScan', {}); dupDefaults(); drawBook(); return;
+      }
+      if(act === 'adm-rp-edit'){
+        var rr = await call('adminReportGet', { date: b.dataset.date });
+        if(!rr.raw) throw new Error(rr.date + ' の日報は原文が残っていません。日報の文章を貼り付けて「読み取る」→「登録する」で直してください');
+        RPTEXT = rr.raw; RP = null; VIEW = 'report'; drawBook(); window.scrollTo(0, 0);
+        say(rr.date + ' の日報の原文を入れました。直してから「読み取る」→「登録する」を押すと置き換わります（売れていない品物は入れ直し、売れた品物はそのままです）', 'ok'); return;
+      }
+      if(act === 'adm-rp-del'){
+        if(!confirm(b.dataset.date + ' の日報を取り消します。\nこの日の売れていない品物も一緒に片付けます（売れた品物は残します）。\n消さずに、スプレッドシートの「片付けたデータ」に移します。よろしいですか？')){ b.disabled = false; return; }
+        var rd = await call('adminReportArchive', { date: b.dataset.date });
+        say(b.dataset.date + ' の日報を取り消しました（品物 ' + rd.products + '点を片付け' + (rd.kept ? '・売れた ' + rd.kept + '点は残しました' : '') + '）', 'ok');
       }
       if(act === 'paid-in'){
         var pp = (BK.products || []).filter(function(x){ return x.id === b.dataset.id; })[0]; if(!pp) throw new Error('商品が見つかりません');
