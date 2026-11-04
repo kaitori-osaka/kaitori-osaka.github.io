@@ -903,7 +903,8 @@
       + '<label class="f">売却価格（円）<br><input type="number" data-pe="price" value="' + v('price') + '" min="0"></label>'
       + '<label class="f">手数料（円）<br><input type="number" data-pe="fee" value="' + v('fee') + '" min="0"></label>'
       + '<label class="f">入金額（円）<br><input type="number" data-pe="paid_in" value="' + v('paid_in') + '" min="0"></label>'
-      + '<label class="f">入金日<br><input type="date" data-pe="paid_in_at" value="' + ymd(p.paid_in_at) + '"></label></div>'
+      + '<label class="f">入金日<br><input type="date" data-pe="paid_in_at" value="' + ymd(p.paid_in_at) + '"></label>'
+      + '<label class="f">入金先<br><select data-pe="paid_to">' + ['', 'レジ', '金庫', '口座'].map(function(o){ return '<option value="' + o + '"' + ((p.paid_to || '') === o ? ' selected' : '') + '>' + (o || '（未入金）') + '</option>'; }).join('') + '</select></label></div>'
       + '<div class="f"><label>メモ</label><input type="text" data-pe="memo" value="' + v('memo') + '" maxlength="300"></div>'
       + '<div class="actions"><button class="btn blue small" data-bk="prod-save" data-id="' + p.id + '">保存</button>' + (p.app_id ? '<button class="btn ghost small" data-bk="go-case" data-id="' + p.app_id + '">買取のお申込みを開く</button>' : '') + '</div></div>';
   }
@@ -963,7 +964,7 @@
       + '<div><small>卸への売上見込み</small><b>' + yen(sE) + '</b><small>見込み卸値 ' + EX.length + '点</small></div>'
       + '<div><small>卸への売上</small><b>' + yen(sS) + '</b><small>' + sells.length + '点・手数料 ' + yen(sF) + '</small></div>'
       + '<div><small>粗利見込み</small><b class="' + (sEP < 0 ? 'minus' : '') + '">' + yen(sEP) + '</b><small>売上見込み − 買取価格</small></div>'
-      + '<div><small>粗利</small><b class="' + (sP < 0 ? 'minus' : '') + '">' + yen(sP) + '</b><small>売上 − 手数料 − 買取価格<br>入金済み ' + yen(sIn) + (sells.some(function(p){ return p.cost == null; }) ? '<br>買取価格が未入力の ' + sells.filter(function(p){ return p.cost == null; }).length + '点は0円で計算' : '') + '</small></div></div>'
+      + '<div><small>粗利</small><b class="' + (sP < 0 ? 'minus' : '') + '">' + yen(sP) + '</b><small>売上 − 手数料 − 買取価格<br>入金済み ' + yen(sIn) + (function(){ var g = {}; sells.forEach(function(p){ if(p.paid_in != null && p.paid_in !== ''){ var k = p.paid_to || '入金先なし'; g[k] = (g[k] || 0) + Number(p.paid_in || 0); } }); var ks = Object.keys(g); return ks.length > 1 || (ks.length === 1 && ks[0] !== 'レジ') ? '（' + ks.map(function(k){ return k + ' ' + yen(g[k]); }).join('・') + '）' : ''; })() + (sells.some(function(p){ return p.cost == null; }) ? '<br>買取価格が未入力の ' + sells.filter(function(p){ return p.cost == null; }).length + '点は0円で計算' : '') + '</small></div></div>'
       + (function(){ var RR = (BK.reports || []).filter(function(r){ return all || String(r.date).slice(0, 7) === m; }); if(!RR.length) return '';
           var b = RR.reduce(function(t, r){ return t + Number(r.buy || 0); }, 0), sv = RR.reduce(function(t, r){ return t + Number(r.sell || 0); }, 0), pf = RR.reduce(function(t, r){ return t + Number(r.profit || 0); }, 0), v = RR.reduce(function(t, r){ return t + Number(r.visitors || 0); }, 0);
           // 「月間〇〇」は日報に書かれたその月の総数。1か月を選んだときは、その月の最後の日報の月間の数字を出す（登録した日の合計は小さく併記）
@@ -980,7 +981,7 @@
           return '<tr' + (x.id ? ' class="click" data-bk="go-case" data-id="' + x.id + '"' : '') + ' title="' + esc((x.items || []).join('、')) + '"><td>' + ymd(x.d) + '</td><td>' + esc(x.no) + '</td><td>' + esc([x.who, it].filter(Boolean).join('　')) + '</td><td>' + esc(x.how) + (x.st && x.st !== '成約' ? '・' + esc(x.st) : '') + (x.ct && x.ct !== '店頭・対面' ? '・' + x.ct : '') + '</td><td class="num">' + yen(x.amt) + '</td></tr>'; }).join('') + '<tr class="sum"><td colspan="4">合計（' + buys.length + '件）</td><td class="num">' + yen(sB) + '</td></tr>' : '<tr><td colspan="5" class="empty">この期間の買取はありません</td></tr>')
       + '</tbody></table></div>'
       + '<h3>卸への販売</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>売却日</th><th>卸先</th><th>品名</th><th class="num">買取価格</th><th class="num">売却価格</th><th class="num">手数料</th><th class="num">粗利</th><th>入金</th></tr></thead><tbody>'
-      + (sells.length ? sells.map(function(p){ var pr = profit(p); return '<tr><td>' + ymd(p.sold_at) + '</td><td>' + esc(p.buyer || '') + '</td><td>' + esc(p.name) + '</td><td class="num">' + yen(p.cost) + '</td><td class="num">' + yen(p.price) + '</td><td class="num">' + yen(p.fee) + '</td><td class="num' + (pr < 0 ? ' minus' : '') + '">' + yen(pr) + '</td><td>' + (p.paid_in_at ? ymd(p.paid_in_at) : '<span class="tag new">未入金</span> <button class="btn ghost small" data-bk="paid-in" data-id="' + esc(p.id) + '" title="今日の日付で、売却価格−手数料を入金額として記録します">入金済みにする</button>') + '</td></tr>'; }).join('')
+      + (sells.length ? sells.map(function(p){ var pr = profit(p); return '<tr><td>' + ymd(p.sold_at) + '</td><td>' + esc(p.buyer || '') + '</td><td>' + esc(p.name) + '</td><td class="num">' + yen(p.cost) + '</td><td class="num">' + yen(p.price) + '</td><td class="num">' + yen(p.fee) + '</td><td class="num' + (pr < 0 ? ' minus' : '') + '">' + yen(pr) + '</td><td>' + (p.paid_in_at ? ymd(p.paid_in_at) + (p.paid_to ? '<br><small>' + esc(p.paid_to) + '</small>' : '') : '<span class="tag new">未入金</span> ' + ['レジ', '金庫', '口座'].map(function(w){ return '<button class="btn ghost small" data-bk="paid-in" data-to="' + w + '" data-id="' + esc(p.id) + '" title="今日の日付で、売却価格−手数料を' + w + 'への入金として記録します">' + w + 'に入金</button>'; }).join(' ')) + '</td></tr>'; }).join('')
         + '<tr class="sum"><td colspan="3">合計</td><td class="num">' + yen(sC) + '</td><td class="num">' + yen(sS) + '</td><td class="num">' + yen(sF) + '</td><td class="num">' + yen(sP) + '</td><td></td></tr>' : '<tr><td colspan="8" class="empty">この期間の売却はありません</td></tr>')
       + '</tbody></table></div>'
       + '<h3>月ごとの集計（直近12か月）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>月</th><th class="num">買取</th><th class="num">卸への売上見込み</th><th class="num">粗利見込み</th><th class="num">卸への売上</th><th class="num">手数料</th><th class="num">売れた物の買取価格</th><th class="num">粗利</th></tr></thead><tbody>' + monthly + '</tbody></table></div>'
@@ -1150,11 +1151,12 @@
   }
   function regKpis(RR, gp){
     var t = {};
-    var ex = { reg: 0, all: 0, cat: {}, list: [] }, bank = 0;
+    var ex = { reg: 0, all: 0, cat: {}, list: [] }, bank = 0, safeIn = 0;
     RR.forEach(function(r){ movesOf(r).forEach(function(x){
       var v = Number(x.amount) || 0;
       if(x.kind === '経費'){ ex.all += v; if(placeOf(x) === 'レジ') ex.reg += v; var c = catOf(x); ex.cat[c] = (ex.cat[c] || 0) + v; ex.list.push({ date: r.date, x: x }); return; }
       if(x.kind === '卸先からの振込'){ bank += v; return; }
+      if(x.kind === '卸先からの入金' && placeOf(x) === '金庫'){ safeIn += v; return; }
       var k = /^貸付金/.test(x.kind) ? '貸付金' : x.kind; t[k] = (t[k] || 0) + v * (x.sign || 1); }); });
     if(ex.all) t['経費'] = -ex.all;
     // 貸付金の残高は全期間で数える
@@ -1165,10 +1167,11 @@
       // 0円の項目は出さない
       + (t['買取資金の補充'] ? '<div><small>買取資金の補充</small><b>' + yen(t['買取資金の補充']) + '</b></div>' : '')
       + (t['卸先からの入金'] ? '<div><small>卸先からの入金（レジへ）</small><b>' + yen(t['卸先からの入金']) + '</b></div>' : '')
+      + (safeIn ? '<div><small>卸先からの入金（金庫へ）</small><b>' + yen(safeIn) + '</b><small>レジとは別に管理</small></div>' : '')
       + (bank ? '<div><small>卸先からの振込（口座へ）</small><b>' + yen(bank) + '</b><small>レジとは関係なし</small></div>' : '')
       + (ex.all ? '<div class="click kpi-btn" data-bk="exp-open" role="button" tabindex="0" title="押すと、いつ・何の経費かの一覧が出ます"><small>経費 ' + (EXPOPEN ? '▲' : '▼') + '</small><b class="minus">' + yen(ex.all) + '</b><small>'
           + esc(Object.keys(ex.cat).map(function(k){ return k + ' ' + yen(ex.cat[k]); }).join('・')) + (ex.all !== ex.reg ? '<br>うちレジから ' + yen(ex.reg) : '') + (gp != null ? '<br>粗利 − 経費 ＝ ' + yen(gp - ex.all) : '') + '</small></div>' : '')
-      + (function(){ var rp = 0; RR.forEach(function(r){ movesOf(r).forEach(function(x){ if(placeOf(x) === '金庫') rp += Number(x.amount) || 0; }); }); return rp ? '<div><small>貸付金の返済（金庫から・レジとは関係なし）</small><b>' + yen(rp) + '</b></div>' : ''; })()
+      + (function(){ var rp = 0; RR.forEach(function(r){ movesOf(r).forEach(function(x){ if(/^貸付金の返済/.test(x.kind) && placeOf(x) === '金庫') rp += Number(x.amount) || 0; }); }); return rp ? '<div><small>貸付金の返済（金庫から・レジとは関係なし）</small><b>' + yen(rp) + '</b></div>' : ''; })()
       + '<div class="click kpi-btn" data-bk="loan-open" role="button" tabindex="0" title="押すと、いつ・だれの貸付・返済かの一覧が出ます"><small>店への貸付金の残高 ' + (LOANOPEN ? '▲' : '▼') + '</small><b>' + yen(Object.keys(all).reduce(function(s, k){ return s + all[k]; }, 0)) + '</b><small>' + esc(Object.keys(all).map(function(k){ return k + ' ' + yen(all[k]); }).join('・')) + '</small></div></div>'
       + (LOANOPEN ? loanList() : '') + (EXPOPEN && ex.list.length ? expList(ex.list) : '');
   }
@@ -1247,7 +1250,7 @@
     (RP.net || []).forEach(function(n, i){
       var p = 'net.' + i, s = sumOf(n.items, 'price');
       h += '<div class="rp-net"><div class="rp-dh"><b>売却 ' + (i + 1) + '</b><label>売り先<br>' + rin(p + '.channel', 'text', '12em') + '</label><label>種類<br>' + rsel(p + '.type', NET_TYPES) + '</label><label>合計（日報の記載）<br>' + rin(p + '.total', 'number', '8em') + '</label>'
-        + '<button class="btn ghost small rp-del" data-bk="rp-delnet" data-i="' + i + '" title="この売却をまるごと消す">×</button></div><ul class="rp-chk">' + (n.total == null || n.total === '' ? '<li>売れた価格の合計：' + yen(s) + '</li>' : chk('売れた価格の合計', s, Number(n.total) || 0)) + '<li>代金：<select data-rp="' + p + '.paid"><option value=""' + (n.paid ? '' : ' selected') + '>入金予定（まだ入っていない）</option><option value="cash"' + (n.paid === 'cash' ? ' selected' : '') + '>レジへ入金済み</option></select></li>' + (n.expect_total ? chk('売上見込み（元卸値）の合計', sumOf(n.items, 'expect'), Number(n.expect_total) || 0) : '') + '</ul><p class="hint">「800→2112」は、売れた在庫の「売上見込みだった価格 → 最終的に売れた価格」です。在庫に同じ品名があれば、その商品を売却済にします。</p>'
+        + '<button class="btn ghost small rp-del" data-bk="rp-delnet" data-i="' + i + '" title="この売却をまるごと消す">×</button></div><ul class="rp-chk">' + (n.total == null || n.total === '' ? '<li>売れた価格の合計：' + yen(s) + '</li>' : chk('売れた価格の合計', s, Number(n.total) || 0)) + '<li>代金：<select data-rp="' + p + '.paid"><option value=""' + (n.paid ? '' : ' selected') + '>入金予定（まだ入っていない）</option><option value="cash"' + (n.paid === 'cash' ? ' selected' : '') + '>レジへ入金済み（店で買取に使うお金）</option><option value="safe"' + (n.paid === 'safe' ? ' selected' : '') + '>金庫に入金済み（レジとは別のお金）</option></select></li>' + (n.expect_total ? chk('売上見込み（元卸値）の合計', sumOf(n.items, 'expect'), Number(n.expect_total) || 0) : '') + '</ul><p class="hint">「800→2112」は、売れた在庫の「売上見込みだった価格 → 最終的に売れた価格」です。在庫に同じ品名があれば、その商品を売却済にします。</p>'
         + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>買取日</th><th>品名</th><th class="num">売上見込み</th><th class="num">売れた価格</th><th>メモ</th><th></th></tr></thead><tbody>'
         + (n.items || []).map(function(x, j){ var q = p + '.items.' + j; return '<tr><td>' + rin(q + '.date', 'date') + '</td><td>' + rin(q + '.name', 'text', '100%') + '</td><td class="num">' + rin(q + '.expect', 'number', '7em') + '</td><td class="num">' + rin(q + '.price', 'number', '7em') + '</td><td>' + rin(q + '.note', 'text', '8em') + '</td><td><button class="btn ghost small rp-del" data-bk="rp-delnetitem" data-i="' + i + '" data-j="' + j + '" title="この品物を消す">×</button></td></tr>'; }).join('')
         + '</tbody></table></div><div class="rp-df"><button class="btn ghost small" data-bk="rp-addnetitem" data-i="' + i + '">＋ 品物を追加</button></div></div>';
@@ -1285,6 +1288,10 @@
     var t = ev.target;
     if(t.dataset.rp && t.tagName === 'SELECT'){
       rpSet(t.dataset.rp, t.value);
+      var nk = /^net\.(\d+)\.paid$/.exec(t.dataset.rp);
+      if(nk){ var ng = RP.net[+nk[1]], ch = String(ng.channel || '').replace(/\s/g, ''), hd = String(ng.head || '');
+        (RP.moves || []).forEach(function(x){ if(kindBase(x.kind) !== '卸先からの入金') return; var w = String(x.who || '').replace(/\s/g, '');
+          if((hd && x.text === hd) || (ch && w && (w.indexOf(ch) >= 0 || ch.indexOf(w) >= 0))) x.place = t.value === 'safe' ? '金庫' : 'レジ'; }); }
       var mk = /^moves\.(\d+)\.kind$/.exec(t.dataset.rp);
       if(mk){ var mv = RP.moves[+mk[1]]; mv.place = t.value === '貸付金の返済' ? '金庫' : t.value === '卸先からの振込' ? '口座' : 'レジ'; if(t.value === '経費'){ mv.cat = mv.cat || catOf(mv); } }
       rpRedraw();
@@ -1441,8 +1448,9 @@
       if(act === 'paid-in'){
         var pp = (BK.products || []).filter(function(x){ return x.id === b.dataset.id; })[0]; if(!pp) throw new Error('商品が見つかりません');
         var amt = Number(pp.price || 0) - Number(pp.fee || 0);
-        if(!confirm(pp.name + '\n入金額 ' + yen(amt) + '（今日の日付）で入金済みにします。よろしいですか？')){ b.disabled = false; return; }
-        await call('staffProductSave', { id: pp.id, patch: { paid_in: amt, paid_in_at: new Date().toISOString() } }); say('入金済みにしました', 'ok');
+        var to = b.dataset.to || 'レジ';
+        if(!confirm(pp.name + '\n入金額 ' + yen(amt) + '（今日の日付）を「' + to + '」への入金として記録します。よろしいですか？' + (to === '金庫' ? '\n（金庫はレジとは別に管理しているお金です）' : ''))){ b.disabled = false; return; }
+        await call('staffProductSave', { id: pp.id, patch: { paid_in: amt, paid_in_at: new Date().toISOString(), paid_to: to } }); say(to + 'への入金にしました', 'ok');
       }
       if(act === 'prod-add'){
         var item = {}; V.querySelectorAll('[data-pa]').forEach(function(e){ item[e.dataset.pa] = e.value.trim(); });
