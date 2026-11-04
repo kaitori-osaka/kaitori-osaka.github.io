@@ -974,7 +974,7 @@
           // 上の5項目と同じ数字は出さず、日報に書かれた月間の数字との照らし合わせだけを1行で出す
           var mb = Number(L && L.m_buy != null && L.m_buy !== '' ? L.m_buy : b), rb = rpBuys().filter(function(x){ return inM(x.d); }).reduce(function(t, x){ return t + x.amt; }, 0);
           return '<p class="bk-check">' + (L ? '日報（' + esc(L.date) + '）の月間' : '日報の合計') + '：来客 ' + M('visitors', v, '人') + '・買取額 ' + yen(mb) + '・売値 ' + M('sell', sv) + '・利益 ' + M('profit', pf)
-            + '　<b class="' + (mb === rb ? 'ok' : 'minus') + '">' + (mb === rb ? '店頭の買取と一致 ✓' : '店頭の買取（' + yen(rb) + '）と差 ' + yen(mb - rb) + '（登録していない日報があります）') + '</b></p>' + regKpis(RR); })()
+            + '　<b class="' + (mb === rb ? 'ok' : 'minus') + '">' + (mb === rb ? '店頭の買取と一致 ✓' : '店頭の買取（' + yen(rb) + '）と差 ' + yen(mb - rb) + '（登録していない日報があります）') + '</b></p>' + regKpis(RR, sP); })()
       + '<h3>買取（仕入）</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>受付番号</th><th>お客様・お品物</th><th>方法・状態</th><th class="num">買取金額</th></tr></thead><tbody>'
       + (buys.length ? buys.map(function(x){ var it = x.items ? x.items[0] + (x.items.length > 1 ? ' 他' + (x.items.length - 1) + '点' : '') : '';
           return '<tr' + (x.id ? ' class="click" data-bk="go-case" data-id="' + x.id + '"' : '') + ' title="' + esc((x.items || []).join('、')) + '"><td>' + ymd(x.d) + '</td><td>' + esc(x.no) + '</td><td>' + esc([x.who, it].filter(Boolean).join('　')) + '</td><td>' + esc(x.how) + (x.st && x.st !== '成約' ? '・' + esc(x.st) : '') + (x.ct && x.ct !== '店頭・対面' ? '・' + x.ct : '') + '</td><td class="num">' + yen(x.amt) + '</td></tr>'; }).join('') + '<tr class="sum"><td colspan="4">合計（' + buys.length + '件）</td><td class="num">' + yen(sB) + '</td></tr>' : '<tr><td colspan="5" class="empty">この期間の買取はありません</td></tr>')
@@ -1110,7 +1110,7 @@
         + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
         + L.map(function(r){ return '<tr id="rp-row-' + esc(r.date) + '"' + (ck.bad[r.date] ? ' class="rp-bad"' : '') + '><td>' + esc(r.date) + (ck.bad[r.date] ? '<br><small class="minus">⚠ ' + esc(ck.bad[r.date]) + '</small>' : '')
           + (isAdm() ? '<div class="adm-btns"><button class="btn ghost small" data-bk="adm-rp-edit" data-date="' + esc(r.date) + '">直す</button><button class="btn ghost small danger" data-bk="adm-rp-del" data-date="' + esc(r.date) + '">取り消す</button></div>' : '') + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
-          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + (placeOf(x) === '金庫' ? '（金庫）' : '') + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
+          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ var pl = placeOf(x); return moveName(x) + (pl !== 'レジ' ? '（' + pl + '）' : '') + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
         + '</tbody></table></div></details>';
     });
     h += lost;
@@ -1120,9 +1120,23 @@
   function movesOf(r){ return Array.isArray(r.moves) ? r.moves : []; }
   // 貸付金の返済は金庫から（レジとは関係なし）
   function placeOf(x){ return x.place || (/^貸付金の返済/.test(x.kind) ? '金庫' : 'レジ'); }
-  function regKpis(RR){
+  var EXPOPEN = false;
+  function expList(L){
+    L = L.slice().sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    var tot = 0;
+    return '<div class="loan-list"><h3 style="margin:6px 0">経費の一覧</h3><div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>区分</th><th>どこのお金</th><th class="num">金額</th><th>日報の記載</th></tr></thead><tbody>'
+      + L.map(function(e){ tot += Number(e.x.amount) || 0; return '<tr><td>' + esc(e.date) + '</td><td>' + esc(catOf(e.x)) + '</td><td>' + placeLabel(e.x) + '</td><td class="num minus">−' + yen(e.x.amount) + '</td><td>' + esc(e.x.text || '') + '</td></tr>'; }).join('')
+      + '<tr class="sum"><td colspan="3">合計（' + L.length + '件）</td><td class="num">−' + yen(tot) + '</td><td></td></tr></tbody></table></div></div>';
+  }
+  function regKpis(RR, gp){
     var t = {};
-    RR.forEach(function(r){ movesOf(r).forEach(function(x){ var k = /^貸付金/.test(x.kind) ? '貸付金' : x.kind; t[k] = (t[k] || 0) + (Number(x.amount) || 0) * (x.sign || 1); }); });
+    var ex = { reg: 0, all: 0, cat: {}, list: [] }, bank = 0;
+    RR.forEach(function(r){ movesOf(r).forEach(function(x){
+      var v = Number(x.amount) || 0;
+      if(x.kind === '経費'){ ex.all += v; if(placeOf(x) === 'レジ') ex.reg += v; var c = catOf(x); ex.cat[c] = (ex.cat[c] || 0) + v; ex.list.push({ date: r.date, x: x }); return; }
+      if(x.kind === '卸先からの振込'){ bank += v; return; }
+      var k = /^貸付金/.test(x.kind) ? '貸付金' : x.kind; t[k] = (t[k] || 0) + v * (x.sign || 1); }); });
+    if(ex.all) t['経費'] = -ex.all;
     // 貸付金の残高は全期間で数える
     var all = {}; (BK.reports || []).forEach(function(r){ movesOf(r).forEach(function(x){ if(/^貸付金/.test(x.kind) && x.who) all[x.who] = (all[x.who] || 0) + (Number(x.amount) || 0) * (x.sign || 1); }); });
     var last = RR.slice().sort(function(a, b){ return a.date < b.date ? 1 : -1; })[0];
@@ -1131,10 +1145,12 @@
       // 0円の項目は出さない
       + (t['買取資金の補充'] ? '<div><small>買取資金の補充</small><b>' + yen(t['買取資金の補充']) + '</b></div>' : '')
       + (t['卸先からの入金'] ? '<div><small>卸先からの入金（レジへ）</small><b>' + yen(t['卸先からの入金']) + '</b></div>' : '')
-      + (t['経費'] ? '<div><small>経費（レジから）</small><b>' + yen(Math.abs(t['経費'])) + '</b></div>' : '')
+      + (bank ? '<div><small>卸先からの振込（口座へ）</small><b>' + yen(bank) + '</b><small>レジとは関係なし</small></div>' : '')
+      + (ex.all ? '<div class="click kpi-btn" data-bk="exp-open" role="button" tabindex="0" title="押すと、いつ・何の経費かの一覧が出ます"><small>経費 ' + (EXPOPEN ? '▲' : '▼') + '</small><b class="minus">' + yen(ex.all) + '</b><small>'
+          + esc(Object.keys(ex.cat).map(function(k){ return k + ' ' + yen(ex.cat[k]); }).join('・')) + (ex.all !== ex.reg ? '<br>うちレジから ' + yen(ex.reg) : '') + (gp != null ? '<br>粗利 − 経費 ＝ ' + yen(gp - ex.all) : '') + '</small></div>' : '')
       + (function(){ var rp = 0; RR.forEach(function(r){ movesOf(r).forEach(function(x){ if(placeOf(x) === '金庫') rp += Number(x.amount) || 0; }); }); return rp ? '<div><small>貸付金の返済（金庫から・レジとは関係なし）</small><b>' + yen(rp) + '</b></div>' : ''; })()
       + '<div class="click kpi-btn" data-bk="loan-open" role="button" tabindex="0" title="押すと、いつ・だれの貸付・返済かの一覧が出ます"><small>店への貸付金の残高 ' + (LOANOPEN ? '▲' : '▼') + '</small><b>' + yen(Object.keys(all).reduce(function(s, k){ return s + all[k]; }, 0)) + '</b><small>' + esc(Object.keys(all).map(function(k){ return k + ' ' + yen(all[k]); }).join('・')) + '</small></div></div>'
-      + (LOANOPEN ? loanList() : '');
+      + (LOANOPEN ? loanList() : '') + (EXPOPEN && ex.list.length ? expList(ex.list) : '');
   }
   // 店への貸付金の一覧（全期間・日付の古い順。残高の移り変わりつき）
   var LOANOPEN = false;
@@ -1149,9 +1165,22 @@
         : '<tr><td colspan="8" class="empty">まだ貸付金の記録はありません</td></tr>')
       + '</tbody></table></div></div>';
   }
+  function catOf(x){
+    if(x.kind !== '経費') return '';
+    if(x.cat) return x.cat;
+    var t = String(x.text || '');
+    if(/フレッツ|ビッグローブ|BIGLOBE|NTT|ソフトバンク|docomo|ドコモ|au|楽天モバイル|インターネット|ネット代|通信|電話|プロバイダ|Wi-?Fi/i.test(t)) return '通信費';
+    if(/水道|電気|ガス|関西電力|関電|大阪ガス|光熱/.test(t)) return '水道光熱費';
+    if(/交通|電車|切符|バス|タクシー|ガソリン|駐車|高速/.test(t)) return '交通費';
+    if(/送料|郵便|切手代|ゆうパック|レターパック|宅急便|宅配|発送/.test(t)) return '送料';
+    if(/用紙|封筒|文具|コピー|備品|消耗|テープ|袋|電池|洗剤|ティッシュ|トナー|インク/.test(t)) return '消耗品・備品';
+    return 'その他';
+  }
+  function placeLabel(x){ var pl = placeOf(x); return pl === '金庫' ? '<span class="tag">金庫（レジとは関係なし）</span>' : pl === '口座' ? '<span class="tag">口座への振込（レジとは関係なし）</span>' : /^在庫/.test(pl) ? '<span class="tag">' + esc(pl) + 'で支払い（レジからの持ち出しなし）</span>' : 'レジ'; }
+  function moveName(x){ return x.kind + (catOf(x) ? '（' + catOf(x) + '）' : ''); }
   function movesTable(M){
     return '<div class="table-wrap"><table class="bk-table"><thead><tr><th>種類</th><th>どこのお金</th><th class="num">金額</th><th>日報の記載</th></tr></thead><tbody>'
-      + M.map(function(x){ return '<tr><td>' + esc(x.kind) + '</td><td>' + (placeOf(x) === '金庫' ? '<span class="tag">金庫（レジとは関係なし）</span>' : 'レジ') + '</td><td class="num' + (x.sign < 0 ? ' minus' : '') + '">' + (x.sign < 0 ? '−' : '+') + yen(x.amount) + '</td><td>' + esc(x.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      + M.map(function(x){ return '<tr><td>' + esc(moveName(x)) + '</td><td>' + placeLabel(x) + '</td><td class="num' + (x.sign < 0 ? ' minus' : '') + '">' + (x.sign < 0 ? '−' : '+') + yen(x.amount) + '</td><td>' + esc(x.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
   // 登録した日報の「お客様ごと」（時間・結果・買取額・予定卸値・予定利益・商品詳細）
   function dealsRow(r, isOpen){
@@ -1247,7 +1276,7 @@
         if(!confirm(dup ? RP.date + ' の日報はすでに登録されています。この内容で上書きしますか？\n（品物は二重に入りません。日報の数字・お客様・メモはこの内容に置き換わります）' : RP.date + ' の日報を登録します。よろしいですか？')) throw null;
         b.textContent = '登録しています…';
         var res = await call('staffReportSave', { report: RP, text: RPTEXT, buyerId: bsel ? bsel.value : '', actor: actor() });
-        say(res.date + ' の日報を登録しました（商品 ' + res.added + '点を追加' + (res.matched ? '・在庫の ' + res.matched + '点を売却済に' : '') + (res.skipped ? '・登録済みの ' + res.skipped + '点はそのまま' : '') + (res.redo ? '・直す前の品物 ' + res.redo + '点は片付けて入れ直し' : '') + '）', 'ok');
+        say(res.date + ' の日報を登録しました（商品 ' + res.added + '点を追加' + (res.matched ? '・在庫の ' + res.matched + '点を売却済に' : '') + (res.skipped ? '・登録済みの ' + res.skipped + '点はそのまま' : '') + (res.redo ? '・直す前の品物 ' + res.redo + '点は片付けて入れ直し' : '') + (res.used ? '・店で使った券など ' + res.used + '点を在庫から引きました' : '') + '）' + (res.useMiss && res.useMiss.length ? '。在庫に見つからなかった券：' + res.useMiss.join('、') + '（商品管理表で「店で使用」にしてください）' : ''), res.useMiss && res.useMiss.length ? 'warn' : 'ok');
         RP = null; RPTEXT = ''; await loadBooks(); drawBook(); return;
       }
     }catch(e){ if(e) say(e.message); }
@@ -1273,6 +1302,7 @@
     var q = function(sel){ var e = V.querySelector(sel); return e ? (e.type === 'checkbox' ? e.checked : e.value.trim()) : ''; };
     try{
       if(act === 'loan-open'){ LOANOPEN = !LOANOPEN; drawBook(); return; }
+      if(act === 'exp-open'){ EXPOPEN = !EXPOPEN; drawBook(); return; }
       if(act === 'cust-open' || act === 'prod-open' || act === 'buyer-open'){ var id = b.dataset.key || b.dataset.id; BOPEN = BOPEN === id ? null : id; drawBook(); return; }
       if(act === 'buyer-new'){ BOPEN = 'new'; drawBook(); return; }
       if(act === 'close'){ BOPEN = null; drawBook(); return; }
