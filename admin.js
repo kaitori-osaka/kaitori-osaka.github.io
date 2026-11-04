@@ -1222,7 +1222,7 @@
     var won = (RP.deals || []).filter(function(d){ return d.status === '成約'; }), wItems = [].concat.apply([], won.map(function(d){ return d.items || []; }));
     var buyers = (BK.buyers || []).filter(function(b){ return b.active !== false; });
     var hq = buyers.filter(function(b){ return /本部/.test(b.name); })[0];
-    var h = '<div class="cust rp"><h3 style="margin-top:0">読み取った内容（直せます）' + (RP.by === 'ai' ? ' <span class="tag">AIで読み取り</span>' : '') + '</h3>'
+    var h = '<div class="cust rp"><h3 style="margin-top:0">' + (RP.by === 'saved' ? '登録済みの内容（直せます）' : '読み取った内容（直せます）') + (RP.by === 'ai' ? ' <span class="tag">AIで読み取り</span>' : '') + '</h3>'
       + ((RP.warn || []).length ? '<div class="rp-warn"><b>注意</b><ul>' + RP.warn.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' : '')
       + (((BK.reports || []).some(function(r){ return r.date === RP.date; })) ? '<div class="rp-warn">この日（' + esc(RP.date) + '）の日報はすでに登録されています。登録すると上書きになります。</div>' : '')
       + '<div class="inline">'
@@ -1336,7 +1336,7 @@
         if(!confirm(dup ? RP.date + ' の日報はすでに登録されています。この内容で上書きしますか？\n（品物は二重に入りません。日報の数字・お客様・メモはこの内容に置き換わります）' : RP.date + ' の日報を登録します。よろしいですか？')) throw null;
         b.textContent = '登録しています…';
         var res = await call('staffReportSave', { report: RP, text: RPTEXT, buyerId: bsel ? bsel.value : '', actor: actor() });
-        say(res.date + ' の日報を登録しました（商品 ' + res.added + '点を追加' + (res.matched ? '・在庫の ' + res.matched + '点を売却済に' : '') + (res.skipped ? '・登録済みの ' + res.skipped + '点はそのまま' : '') + (res.redo ? '・直す前の品物 ' + res.redo + '点は片付けて入れ直し' : '') + (res.used ? '・店で使った券など ' + res.used + '点を在庫から引きました' : '') + '）' + (res.useMiss && res.useMiss.length ? '。在庫に見つからなかった券：' + res.useMiss.join('、') + '（商品管理表で「店で使用」にしてください）' : ''), res.useMiss && res.useMiss.length ? 'warn' : 'ok');
+        say(res.date + ' の日報を登録しました（商品 ' + res.added + '点を追加' + (res.matched ? '・在庫の ' + res.matched + '点を売却済に' : '') + (res.skipped ? '・登録済みの ' + res.skipped + '点はそのまま' : '') + (res.redo ? '・直す前の品物 ' + res.redo + '点は片付けて入れ直し' : '') + (res.fixed ? '・売却済みの ' + res.fixed + '点の金額・入金を直しました' : '') + (res.used ? '・店で使った券など ' + res.used + '点を在庫から引きました' : '') + '）' + (res.useMiss && res.useMiss.length ? '。在庫に見つからなかった券：' + res.useMiss.join('、') + '（商品管理表で「店で使用」にしてください）' : ''), res.useMiss && res.useMiss.length ? 'warn' : 'ok');
         RP = null; RPTEXT = ''; await loadBooks(); drawBook(); return;
       }
     }catch(e){ if(e) say(e.message); }
@@ -1435,10 +1435,17 @@
         await loadBooks(); DUP = await call('adminDupScan', {}); dupDefaults(); drawBook(); return;
       }
       if(act === 'adm-rp-edit'){
+        // 登録済みの内容をそのまま確認画面に開く（読み取り直さなくても直せる）
+        var R0 = (BK.reports || []).filter(function(x){ return x.date === b.dataset.date; })[0];
+        if(!R0) throw new Error('日報が見つかりません。画面を読み直してください');
         var rr = await call('adminReportGet', { date: b.dataset.date });
-        if(!rr.raw) throw new Error(rr.date + ' の日報は原文が残っていません。日報の文章を貼り付けて「読み取る」→「登録する」で直してください');
-        RPTEXT = rr.raw; RP = null; VIEW = 'report'; drawBook(); window.scrollTo(0, 0);
-        say(rr.date + ' の日報の原文を入れました。直してから「読み取る」→「登録する」を押すと置き換わります（売れていない品物は入れ直し、売れた品物はそのままです）', 'ok'); return;
+        var lines = function(v){ return Array.isArray(v) ? v.slice() : String(v || '').split('\n').map(function(x){ return x.trim(); }).filter(Boolean); };
+        RP = JSON.parse(JSON.stringify({ date: R0.date, visitors: R0.visitors, buy: R0.buy, sell: R0.sell, profit: R0.profit, cash: R0.cash,
+          month: { visitors: R0.m_visitors, buy: R0.m_buy, sell: R0.m_sell, profit: R0.m_profit },
+          deals: R0.deals || [], net: R0.net || [], moves: movesOf(R0), cash_notes: lines(R0.cash_notes), notes: lines(R0.notes), warn: [], by: 'saved' }));
+        RPTEXT = rr.raw || ''; VIEW = 'report'; drawBook();
+        var pv = $('vBook').querySelector('.rp'); if(pv) pv.scrollIntoView({ block: 'start' });
+        say(rr.date + ' の登録済みの内容を開きました。そのまま直して、下の「この内容で登録する」を押すと置き換わります（原文から読み取り直したいときは、上の「読み取る」）', 'ok'); return;
       }
       if(act === 'adm-rp-del'){
         if(!confirm(b.dataset.date + ' の日報を取り消します。\nこの日の売れていない品物も一緒に片付けます（売れた品物は残します）。\n消さずに、スプレッドシートの「片付けたデータ」に移します。よろしいですか？')){ b.disabled = false; return; }
