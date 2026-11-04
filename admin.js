@@ -1301,5 +1301,27 @@
     }catch(e){ if(e) say(e.message); b.disabled = false; }
   });
 
+  // 新しい版の確認：画面を開いたままでも、更新があればお知らせを出す（5分ごと・画面に戻ったとき）
+  (function(){
+    var me = [].slice.call(document.scripts).map(function(x){ return x.getAttribute('src') || ''; }).filter(function(x){ return /^admin\.js\?v=/.test(x); })[0];
+    if(!me) return;
+    var shown = false;
+    async function check(){
+      if(shown) return;
+      try{
+        var t = await (await fetch('admin.html?_=' + Date.now(), { cache: 'no-store' })).text(), m = /admin\.js\?v=[0-9a-f]+/.exec(t);
+        if(m && m[0] !== me){
+          shown = true;
+          var d = document.createElement('div'); d.className = 'new-ver';
+          d.innerHTML = '管理画面が新しくなりました。<button type="button" class="btn small">最新の画面にする</button>';
+          d.querySelector('button').onclick = function(){ location.reload(); };
+          document.body.appendChild(d);
+        }
+      }catch(e){}
+    }
+    setInterval(check, 5 * 60 * 1000);
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) check(); });
+  })();
   (async function(){ if(API.configured && SESS){ try{ await enter(); }catch(e){ SS.set(null); SESS = null; } } if(!API.configured) $('loginMsg').innerHTML = '<p class="msg warn">受付システムが未接続です（config.js を設定してください）</p>'; })();
 })();
