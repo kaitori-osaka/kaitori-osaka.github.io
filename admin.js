@@ -1050,7 +1050,7 @@
     for(var i = 0; i < first.getDay(); i++) h += '<span class="future"></span>';
     for(var t = new Date(first); ymd(t).slice(0, 7) === k; t.setDate(t.getDate() + 1)){
       var ds = ymd(t), r = ck.have[ds], c = r ? (ck.bad[ds] ? 'bad' : !(r.deals || []).length && !Number(r.buy) && (r.visitors == null || r.visitors === '') ? 'empty' : 'ok') : (ds <= today ? (ck.miss.indexOf(ds) >= 0 ? 'miss' : 'none') : 'future');
-      h += '<span class="' + c + '" title="' + ds + ' ' + ({ ok: '登録済み', bad: '月間の数字が合いません', empty: '登録済み（中身が空）', miss: '未登録', none: '', future: '' }[c]) + '">' + t.getDate() + (c === 'ok' ? '✓' : c === 'bad' || c === 'empty' ? '⚠' : '') + '</span>';
+      h += '<span class="' + c + (c === 'future' ? '' : ' click') + '"' + (c === 'future' ? '' : ' data-bk="cal-go" data-date="' + ds + '" role="button" tabindex="0"') + ' title="' + ds + ' ' + ({ ok: '登録済み（押すとその日の日報へ）', bad: '月間の数字が合いません（押すとその日の日報へ）', empty: '登録済み・中身が空（押すとその日の日報へ）', miss: '未登録（押すと貼り付け欄へ）', none: '押すと貼り付け欄へ', future: '' }[c]) + '">' + t.getDate() + (c === 'ok' ? '✓' : c === 'bad' || c === 'empty' ? '⚠' : '') + '</span>';
     }
     return h + '</div><p class="hint" style="margin:0 12px 8px">✓ 登録済み　⚠ 月間の数字が合わない・中身が空　赤 未登録（休みの日なら気にしなくて大丈夫です）</p>';
   }
@@ -1108,7 +1108,7 @@
         + (ck.miss.length ? '　<span class="tag new">未登録 ' + ck.miss.length + '日</span>' : '') + (nBad ? '　<span class="tag new">月間の数字が合わない ' + nBad + '日</span>' : '') + '</summary>'
         + rpCalendar(k, L, ck)
         + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
-        + L.map(function(r){ return '<tr' + (ck.bad[r.date] ? ' class="rp-bad"' : '') + '><td>' + esc(r.date) + (ck.bad[r.date] ? '<br><small class="minus">⚠ ' + esc(ck.bad[r.date]) + '</small>' : '')
+        + L.map(function(r){ return '<tr id="rp-row-' + esc(r.date) + '"' + (ck.bad[r.date] ? ' class="rp-bad"' : '') + '><td>' + esc(r.date) + (ck.bad[r.date] ? '<br><small class="minus">⚠ ' + esc(ck.bad[r.date]) + '</small>' : '')
           + (isAdm() ? '<div class="adm-btns"><button class="btn ghost small" data-bk="adm-rp-edit" data-date="' + esc(r.date) + '">直す</button><button class="btn ghost small danger" data-bk="adm-rp-del" data-date="' + esc(r.date) + '">取り消す</button></div>' : '') + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
           + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ return x.kind + (placeOf(x) === '金庫' ? '（金庫）' : '') + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
         + '</tbody></table></div></details>';
@@ -1321,6 +1321,19 @@
         var pend = ROWS.filter(function(r){ return Array.isArray(r.lines) && r.lines.length && (r.status === 'paid' || r.status === 'done' || (r.status === 'accepted' && (r.kind === 'shop' || r.kind === 'visit'))) && !(BK.products || []).some(function(p){ return p.app_id === r.id; }); });
         var n = 0; for(var j = 0; j < pend.length; j++){ var rs = await call('staffProductsFromApp', { id: pend[j].id, actor: who }); n += rs.added; }
         say(n + '点を商品管理表に取り込みました', 'ok');
+      }
+      // カレンダーの日付を押す：登録済みならその日の日報の行へ、未登録なら貼り付け欄へ
+      if(act === 'cal-go'){
+        var cd = b.dataset.date, row = document.getElementById('rp-row-' + cd);
+        if(row){
+          var det = row.closest('details'); if(det && !det.open){ det.open = true; if(det.dataset.rpo) RPOPEN[det.dataset.rpo] = true; }
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.remove('rp-flash'); void row.offsetWidth; row.classList.add('rp-flash');
+        } else {
+          var ta = V.querySelector('[data-rp-text]'); if(ta){ ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); ta.focus(); }
+          say(cd + ' の日報はまだ登録されていません。日報の文章を貼り付けて「読み取る」を押してください', 'ok');
+        }
+        b.disabled = false; return;
       }
       if(act === 'adm-dup-scan'){ DUP = await call('adminDupScan', {}); dupDefaults(); drawBook(); say(DUP.groups.length ? DUP.groups.length + 'か所の重複が見つかりました' : '重複は見つかりませんでした', 'ok'); return; }
       if(act === 'adm-dup-go'){
