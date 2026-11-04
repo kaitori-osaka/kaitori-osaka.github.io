@@ -1067,7 +1067,8 @@
   function rpGet(path){ return path.split('.').reduce(function(o, k){ return o == null ? o : o[k]; }, RP); }
   function rpSet(path, v){ var ks = path.split('.'), o = RP; for(var i = 0; i < ks.length - 1; i++){ if(o[ks[i]] == null) o[ks[i]] = {}; o = o[ks[i]]; } o[ks[ks.length - 1]] = v; }
   function rsel(path, opts, w){ var v = rpGet(path); v = v == null ? '' : String(v); if(v && opts.indexOf(v) < 0) opts = opts.concat([v]); return '<select data-rp="' + path + '"' + (w ? ' style="width:' + w + '"' : '') + '>' + opts.map(function(o){ return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>'; }
-  var MOVE_KINDS = ['経費', '買取資金の補充', '卸先からの入金', '卸先からの振込', '貸付金', '貸付金の返済'];
+  var MOVE_KINDS = ['経費', '買取資金の補充', '卸先からの入金', '卸先からの振込', '貸付金', '貸付金の返済', '両替（増減なし）'];
+  function sgn(x){ return x.sign < 0 ? '−' : x.sign === 0 ? '±' : '+'; }
   var EXP_CATS = ['通信費', '水道光熱費', '消耗品・備品', '荷造・発送費', '交通費', 'その他'];
   var NET_TYPES = ['業者への売却', '業者オークション', 'ネット販売'];
   // 種類の名前から「（藤原）」などを外したもの（選ぶ欄用）
@@ -1077,7 +1078,7 @@
     (RP.moves || []).forEach(function(x){
       var k = kindBase(x.kind); x.kind = k;
       if(k === '貸付金' || k === '貸付金の返済'){ if(x.who) x.kind = k + '（' + x.who + '）'; }
-      x.sign = (k === '経費' || k === '貸付金の返済') ? -1 : 1;
+      x.sign = (k === '経費' || k === '貸付金の返済') ? -1 : k === '両替（増減なし）' ? 0 : 1;
       if(k !== '経費') delete x.cat; else if(!x.cat) x.cat = catOf(x);
       if(!x.place) x.place = k === '貸付金の返済' ? '金庫' : k === '卸先からの振込' ? '口座' : 'レジ';
       x.amount = x.amount == null || x.amount === '' ? null : Number(x.amount);
@@ -1131,7 +1132,7 @@
         + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th class="num">来客</th><th class="num">買取額</th><th class="num">売値</th><th class="num">利益</th><th class="num">残金（レジ）</th><th>レジの出入り・メモ</th></tr></thead><tbody>'
         + L.map(function(r){ return '<tr id="rp-row-' + esc(r.date) + '"' + (ck.bad[r.date] ? ' class="rp-bad"' : '') + '><td>' + esc(r.date) + (ck.bad[r.date] ? '<br><small class="minus">⚠ ' + esc(ck.bad[r.date]) + '</small>' : '')
           + (isAdm() ? '<div class="adm-btns"><button class="btn ghost small" data-bk="adm-rp-edit" data-date="' + esc(r.date) + '">直す</button><button class="btn ghost small danger" data-bk="adm-rp-del" data-date="' + esc(r.date) + '">取り消す</button></div>' : '') + '</td><td class="num">' + (r.visitors == null ? '' : r.visitors) + '</td><td class="num">' + yen(r.buy) + '</td><td class="num">' + yen(r.sell) + '</td><td class="num">' + yen(r.profit) + '</td><td class="num">' + yen(r.cash) + '</td><td>'
-          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ var pl = placeOf(x); return moveName(x) + (pl !== 'レジ' ? '（' + pl + '）' : '') + ' ' + (x.sign < 0 ? '−' : '+') + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
+          + memoCell([movesOf(r).length ? movesOf(r).map(function(x){ var pl = placeOf(x); return moveName(x) + (pl !== 'レジ' ? '（' + pl + '）' : '') + ' ' + sgn(x) + yen(x.amount); }).join('\n') : r.cash_notes, r.notes].filter(Boolean).join('\n')) + '</td></tr>' + dealsRow(r, isOpen); }).join('')
         + '</tbody></table></div></details>';
     });
     h += lost;
@@ -1203,7 +1204,7 @@
   function moveName(x){ return x.kind + (catOf(x) ? '（' + catOf(x) + '）' : ''); }
   function movesTable(M){
     return '<div class="table-wrap"><table class="bk-table"><thead><tr><th>種類</th><th>どこのお金</th><th class="num">金額</th><th>日報の記載</th></tr></thead><tbody>'
-      + M.map(function(x){ return '<tr><td>' + esc(moveName(x)) + '</td><td>' + placeLabel(x) + '</td><td class="num' + (x.sign < 0 ? ' minus' : '') + '">' + (x.sign < 0 ? '−' : '+') + yen(x.amount) + '</td><td>' + esc(x.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      + M.map(function(x){ return '<tr><td>' + esc(moveName(x)) + '</td><td>' + placeLabel(x) + '</td><td class="num' + (x.sign < 0 ? ' minus' : '') + '">' + sgn(x) + yen(x.amount) + '</td><td>' + esc(x.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
   // 登録した日報の「お客様ごと」（時間・結果・買取額・予定卸値・予定利益・商品詳細）
   function dealsRow(r, isOpen){
@@ -1260,7 +1261,7 @@
     h += '<h3>お金の出入り（レジ・金庫・口座）</h3><p class="hint">種類を選び直すと、＋／−は自動で決まります（経費・貸付金の返済は−）。「貸付金」「貸付金の返済」は「だれ」に名前を入れてください。経費は区分を選べます。</p>'
       + '<div class="table-wrap"><table class="bk-table rp-moves"><thead><tr><th>種類</th><th>経費の区分</th><th>だれ・どこ</th><th>どこのお金</th><th class="num">金額</th><th>日報の記載</th><th></th></tr></thead><tbody>'
       + ((RP.moves || []).length ? RP.moves.map(function(x, i){ var q = 'moves.' + i, k = kindBase(x.kind); if(x.kind !== k) x.kind = k;
-          return '<tr><td>' + rsel(q + '.kind', MOVE_KINDS) + '</td><td>' + (k === '経費' ? (x.cat || (x.cat = catOf(x)), rsel(q + '.cat', EXP_CATS)) : '') + '</td><td>' + rin(q + '.who', 'text', '8em') + '</td><td>' + rsel(q + '.place', ['レジ', '金庫', '口座']) + '</td><td class="num' + (k === '経費' || k === '貸付金の返済' ? ' minus' : '') + '">' + (k === '経費' || k === '貸付金の返済' ? '−' : '+') + rin(q + '.amount', 'number', '8em') + '</td><td>' + rin(q + '.text', 'text', '100%') + '</td><td><button class="btn ghost small rp-del" data-bk="rp-delmove" data-i="' + i + '" title="この行を消す">×</button></td></tr>'; }).join('')
+          return '<tr><td>' + rsel(q + '.kind', MOVE_KINDS) + '</td><td>' + (k === '経費' ? (x.cat || (x.cat = catOf(x)), rsel(q + '.cat', EXP_CATS)) : '') + '</td><td>' + rin(q + '.who', 'text', '8em') + '</td><td>' + rsel(q + '.place', ['レジ', '金庫', '口座']) + '</td><td class="num' + (k === '経費' || k === '貸付金の返済' ? ' minus' : '') + '">' + (k === '経費' || k === '貸付金の返済' ? '−' : k === '両替（増減なし）' ? '±' : '+') + rin(q + '.amount', 'number', '8em') + '</td><td>' + rin(q + '.text', 'text', '100%') + '</td><td><button class="btn ghost small rp-del" data-bk="rp-delmove" data-i="' + i + '" title="この行を消す">×</button></td></tr>'; }).join('')
         : '<tr><td colspan="7" class="empty">お金の出入りはありません</td></tr>')
       + '</tbody></table></div><div class="rp-df"><button class="btn ghost small" data-bk="rp-addmove">＋ お金の出入りを追加</button></div>';
     // メモ：1行ずつ直す・足す・消す
