@@ -207,3 +207,9 @@ tr.rp-bad>td{background:#fffbeb}
 .rp-cal span.click:hover{outline:2px solid #2563eb;outline-offset:-2px}
 @keyframes rpflash{0%,60%{background:#fde68a}100%{background:transparent}}
 tr.rp-flash>td{animation:rpflash 2.4s ease-out}
+
+/* 日報の確認：業者への売却・お金の出入り・メモを直す */
+.rp-net{border:1px solid #dde3ee;border-radius:10px;padding:8px 10px;margin:10px 0;background:#fff}
+.rp-net .rp-dh{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.rp-moves input,.rp-moves select{max-width:100%}
+.rp-note{display:flex;gap:6px;align-items:center;margin:4px 0}

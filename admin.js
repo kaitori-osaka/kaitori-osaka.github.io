@@ -1065,6 +1065,26 @@
   }
   function rpGet(path){ return path.split('.').reduce(function(o, k){ return o == null ? o : o[k]; }, RP); }
   function rpSet(path, v){ var ks = path.split('.'), o = RP; for(var i = 0; i < ks.length - 1; i++){ if(o[ks[i]] == null) o[ks[i]] = {}; o = o[ks[i]]; } o[ks[ks.length - 1]] = v; }
+  function rsel(path, opts, w){ var v = rpGet(path); v = v == null ? '' : String(v); if(v && opts.indexOf(v) < 0) opts = opts.concat([v]); return '<select data-rp="' + path + '"' + (w ? ' style="width:' + w + '"' : '') + '>' + opts.map(function(o){ return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>'; }
+  var MOVE_KINDS = ['経費', '買取資金の補充', '卸先からの入金', '卸先からの振込', '貸付金', '貸付金の返済'];
+  var EXP_CATS = ['通信費', '水道光熱費', '消耗品・備品', '荷造・発送費', '交通費', 'その他'];
+  var NET_TYPES = ['業者への売却', '業者オークション', 'ネット販売'];
+  // 種類の名前から「（藤原）」などを外したもの（選ぶ欄用）
+  function kindBase(k){ return String(k || '').replace(/（.*）$/, ''); }
+  // 登録の前に、直した種類・金額から向き（＋／−）と名前を整える
+  function fixMoves(){
+    (RP.moves || []).forEach(function(x){
+      var k = kindBase(x.kind); x.kind = k;
+      if(k === '貸付金' || k === '貸付金の返済'){ if(x.who) x.kind = k + '（' + x.who + '）'; }
+      x.sign = (k === '経費' || k === '貸付金の返済') ? -1 : 1;
+      if(k !== '経費') delete x.cat; else if(!x.cat) x.cat = catOf(x);
+      if(!x.place) x.place = k === '貸付金の返済' ? '金庫' : k === '卸先からの振込' ? '口座' : 'レジ';
+      x.amount = x.amount == null || x.amount === '' ? null : Number(x.amount);
+    });
+    RP.moves = (RP.moves || []).filter(function(x){ return x.amount != null || x.text; });
+    RP.notes = (RP.notes || []).map(function(x){ return String(x || '').trim(); }).filter(Boolean);
+    (RP.net || []).forEach(function(n){ n.items = (n.items || []).filter(function(x){ return (x.name || '').trim() || x.price != null; }); });
+  }
   function rin(path, type, w){ var v = rpGet(path); return '<input type="' + (type || 'text') + '" data-rp="' + path + '" value="' + (v == null ? '' : esc(v)) + '"' + (w ? ' style="width:' + w + '"' : '') + '>'; }
   function sumOf(L, k){ return (L || []).reduce(function(t, x){ return t + (Number(x[k]) || 0); }, 0); }
   function chk(label, a, b){ var ok = a === b; return '<li class="' + (ok ? 'ok' : 'ng') + '">' + (ok ? '✓ ' : '⚠ ') + label + '：' + yen(a) + (ok ? '' : ' ／ 日報の記載 ' + yen(b)) + '</li>'; }
@@ -1226,15 +1246,34 @@
     h += '<label class="f">予定卸値の卸先（金額が出ている卸先）<br><select data-rp-buyer><option value="">買取大吉本部（卸）' + (hq ? '' : '（自動で作成）') + '</option>' + buyers.filter(function(b){ return b !== hq; }).map(function(b){ return '<option value="' + b.id + '">' + esc(b.name) + '</option>'; }).join('') + '</select></label>';
     (RP.net || []).forEach(function(n, i){
       var p = 'net.' + i, s = sumOf(n.items, 'price');
-      h += '<h3>' + esc(n.type || 'ネット販売') + '：' + esc(n.channel || '') + ' ' + esc(n.month || '') + '（' + (n.items || []).length + '点）</h3><ul class="rp-chk">' + chk('売れた価格の合計', s, Number(n.total) || 0) + '<li>代金：<select data-rp="' + p + '.paid"><option value=""' + (n.paid ? '' : ' selected') + '>入金予定（まだ入っていない）</option><option value="cash"' + (n.paid === 'cash' ? ' selected' : '') + '>レジへ入金済み</option></select></li>' + (n.expect_total ? chk('売上見込み（元卸値）の合計', sumOf(n.items, 'expect'), Number(n.expect_total) || 0) : '') + '</ul><p class="hint">「800→2112」は、売れた在庫の「売上見込みだった価格 → 最終的に売れた価格」です。在庫に同じ品名があれば、その商品を売却済にします。</p>'
-        + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>日付</th><th>品名</th><th class="num">売上見込み</th><th class="num">売れた価格</th><th>メモ</th></tr></thead><tbody>'
-        + (n.items || []).map(function(x, j){ var q = p + '.items.' + j; return '<tr><td>' + rin(q + '.date', 'date') + '</td><td>' + rin(q + '.name', 'text', '100%') + '</td><td class="num">' + rin(q + '.expect', 'number', '7em') + '</td><td class="num">' + rin(q + '.price', 'number', '7em') + '</td><td>' + rin(q + '.note', 'text', '8em') + '</td></tr>'; }).join('')
-        + '</tbody></table></div>';
+      h += '<div class="rp-net"><div class="rp-dh"><b>売却 ' + (i + 1) + '</b><label>売り先<br>' + rin(p + '.channel', 'text', '12em') + '</label><label>種類<br>' + rsel(p + '.type', NET_TYPES) + '</label><label>合計（日報の記載）<br>' + rin(p + '.total', 'number', '8em') + '</label>'
+        + '<button class="btn ghost small rp-del" data-bk="rp-delnet" data-i="' + i + '" title="この売却をまるごと消す">×</button></div><ul class="rp-chk">' + (n.total == null || n.total === '' ? '<li>売れた価格の合計：' + yen(s) + '</li>' : chk('売れた価格の合計', s, Number(n.total) || 0)) + '<li>代金：<select data-rp="' + p + '.paid"><option value=""' + (n.paid ? '' : ' selected') + '>入金予定（まだ入っていない）</option><option value="cash"' + (n.paid === 'cash' ? ' selected' : '') + '>レジへ入金済み</option></select></li>' + (n.expect_total ? chk('売上見込み（元卸値）の合計', sumOf(n.items, 'expect'), Number(n.expect_total) || 0) : '') + '</ul><p class="hint">「800→2112」は、売れた在庫の「売上見込みだった価格 → 最終的に売れた価格」です。在庫に同じ品名があれば、その商品を売却済にします。</p>'
+        + '<div class="table-wrap"><table class="bk-table"><thead><tr><th>買取日</th><th>品名</th><th class="num">売上見込み</th><th class="num">売れた価格</th><th>メモ</th><th></th></tr></thead><tbody>'
+        + (n.items || []).map(function(x, j){ var q = p + '.items.' + j; return '<tr><td>' + rin(q + '.date', 'date') + '</td><td>' + rin(q + '.name', 'text', '100%') + '</td><td class="num">' + rin(q + '.expect', 'number', '7em') + '</td><td class="num">' + rin(q + '.price', 'number', '7em') + '</td><td>' + rin(q + '.note', 'text', '8em') + '</td><td><button class="btn ghost small rp-del" data-bk="rp-delnetitem" data-i="' + i + '" data-j="' + j + '" title="この品物を消す">×</button></td></tr>'; }).join('')
+        + '</tbody></table></div><div class="rp-df"><button class="btn ghost small" data-bk="rp-addnetitem" data-i="' + i + '">＋ 品物を追加</button></div></div>';
     });
-    if(movesOf(RP).length) h += '<h3>お金の出入り（レジ・金庫）</h3><p class="hint">「現金〇〇円補充」＝買取資金の補充、「名前＋補充」＝その人から店への貸付金、「卸先名＋補充」＝その日に売った代金をレジに入れたもの、「名前＋返金」＝金庫からの貸付金の返済（レジとは関係なし）、として分けています。</p>' + movesTable(movesOf(RP));
-    if((RP.notes || []).length) h += '<h3>メモ</h3><ul>' + (RP.notes || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+    h += '<div class="actions" style="margin:6px 0 14px"><button class="btn ghost small" data-bk="rp-addnet">＋ 業者への売却・ネット販売を追加</button></div>';
+    // お金の出入り：種類・区分・だれ／どこ・どこのお金・金額・日報の記載を直せる。行の追加・削除もできる
+    h += '<h3>お金の出入り（レジ・金庫・口座）</h3><p class="hint">種類を選び直すと、＋／−は自動で決まります（経費・貸付金の返済は−）。「貸付金」「貸付金の返済」は「だれ」に名前を入れてください。経費は区分を選べます。</p>'
+      + '<div class="table-wrap"><table class="bk-table rp-moves"><thead><tr><th>種類</th><th>経費の区分</th><th>だれ・どこ</th><th>どこのお金</th><th class="num">金額</th><th>日報の記載</th><th></th></tr></thead><tbody>'
+      + ((RP.moves || []).length ? RP.moves.map(function(x, i){ var q = 'moves.' + i, k = kindBase(x.kind); if(x.kind !== k) x.kind = k;
+          return '<tr><td>' + rsel(q + '.kind', MOVE_KINDS) + '</td><td>' + (k === '経費' ? (x.cat || (x.cat = catOf(x)), rsel(q + '.cat', EXP_CATS)) : '') + '</td><td>' + rin(q + '.who', 'text', '8em') + '</td><td>' + rsel(q + '.place', ['レジ', '金庫', '口座']) + '</td><td class="num' + (k === '経費' || k === '貸付金の返済' ? ' minus' : '') + '">' + (k === '経費' || k === '貸付金の返済' ? '−' : '+') + rin(q + '.amount', 'number', '8em') + '</td><td>' + rin(q + '.text', 'text', '100%') + '</td><td><button class="btn ghost small rp-del" data-bk="rp-delmove" data-i="' + i + '" title="この行を消す">×</button></td></tr>'; }).join('')
+        : '<tr><td colspan="7" class="empty">お金の出入りはありません</td></tr>')
+      + '</tbody></table></div><div class="rp-df"><button class="btn ghost small" data-bk="rp-addmove">＋ お金の出入りを追加</button></div>';
+    // メモ：1行ずつ直す・足す・消す
+    h += '<h3>メモ</h3>' + ((RP.notes || []).length ? '<div class="rp-notes">' + RP.notes.map(function(x, i){ return '<div class="rp-note">' + rin('notes.' + i, 'text', '100%') + '<button class="btn ghost small rp-del" data-bk="rp-delnote" data-i="' + i + '" title="このメモを消す">×</button></div>'; }).join('') + '</div>' : '<p class="hint">メモはありません</p>')
+      + '<div class="rp-df"><button class="btn ghost small" data-bk="rp-addnote">＋ メモを追加</button></div>';
     h += '<div class="actions"><button class="btn primary" data-bk="rp-save">この内容で登録する</button></div></div>';
     return h;
+  }
+  // 書き直したあと、合計などを出し直す。次に押した入力欄はそのまま入力を続けられるようにする
+  function rpRedraw(){
+    var y = window.scrollY;
+    setTimeout(function(){
+      var a = document.activeElement, k = a && a.dataset && a.dataset.rp, pos = null; try{ pos = a.selectionStart; }catch(e){}
+      drawBook(); window.scrollTo(0, y);
+      if(k){ var e = $('vBook').querySelector('[data-rp="' + k + '"]'); if(e){ e.focus(); try{ if(pos != null) e.setSelectionRange(pos, pos); }catch(x){} } }
+    }, 0);
   }
   $('vBook').addEventListener('toggle', function(ev){ var k = ev.target.dataset && ev.target.dataset.rpo; if(k) RPOPEN[k] = ev.target.open; }, true);
   $('vBook').addEventListener('input', function(ev){
@@ -1244,8 +1283,13 @@
   });
   $('vBook').addEventListener('change', function(ev){
     var t = ev.target;
-    if(t.dataset.rp && t.tagName === 'SELECT'){ rpSet(t.dataset.rp, t.value); drawBook(); }
-    else if(t.dataset.rp && t.type === 'number'){ var y = window.scrollY; drawBook(); window.scrollTo(0, y); }
+    if(t.dataset.rp && t.tagName === 'SELECT'){
+      rpSet(t.dataset.rp, t.value);
+      var mk = /^moves\.(\d+)\.kind$/.exec(t.dataset.rp);
+      if(mk){ var mv = RP.moves[+mk[1]]; mv.place = t.value === '貸付金の返済' ? '金庫' : t.value === '卸先からの振込' ? '口座' : 'レジ'; if(t.value === '経費'){ mv.cat = mv.cat || catOf(mv); } }
+      rpRedraw();
+    }
+    else if(t.dataset.rp && t.type === 'number'){ rpRedraw(); }
   });
   $('vBook').addEventListener('click', async function(ev){
     var b = ev.target.closest('[data-bk^="rp-"]'); if(!b) return;
@@ -1257,6 +1301,14 @@
       if(act === 'rp-additem'){ var D = RP.deals[+b.dataset.i]; (D.items = D.items || []).push({ name: '', cost: null, price: null, note: null }); drawBook(); return; }
       if(act === 'rp-delitem'){ RP.deals[+b.dataset.i].items.splice(+b.dataset.j, 1); drawBook(); return; }
       if(act === 'rp-adddeal'){ RP.deals.push({ no: null, time: '', status: '成約', items: [{ name: '', cost: null, price: null, note: null }], note: null }); drawBook(); return; }
+      if(act === 'rp-addnet'){ (RP.net = RP.net || []).push({ channel: '', type: '業者への売却', month: String(RP.date || '').slice(0, 7), total: null, expect_total: null, head: '', items: [{ date: '', name: '', expect: null, price: null, note: null }], paid: '' }); drawBook(); return; }
+      if(act === 'rp-delnet'){ if(!confirm('この売却をまるごと消しますか？')) return; RP.net.splice(+b.dataset.i, 1); drawBook(); return; }
+      if(act === 'rp-addnetitem'){ var N = RP.net[+b.dataset.i]; (N.items = N.items || []).push({ date: '', name: '', expect: null, price: null, note: null }); drawBook(); return; }
+      if(act === 'rp-delnetitem'){ RP.net[+b.dataset.i].items.splice(+b.dataset.j, 1); drawBook(); return; }
+      if(act === 'rp-addmove'){ (RP.moves = RP.moves || []).push({ kind: '経費', cat: 'その他', who: null, amount: null, sign: -1, place: 'レジ', text: '' }); drawBook(); return; }
+      if(act === 'rp-delmove'){ RP.moves.splice(+b.dataset.i, 1); drawBook(); return; }
+      if(act === 'rp-addnote'){ (RP.notes = RP.notes || []).push(''); drawBook(); var ns = $('vBook').querySelectorAll('.rp-note input'); if(ns.length) ns[ns.length - 1].focus(); return; }
+      if(act === 'rp-delnote'){ RP.notes.splice(+b.dataset.i, 1); drawBook(); return; }
       if(act === 'rp-deldeal'){ if(!confirm('このお客様の行を消しますか？')) return; RP.deals.splice(+b.dataset.i, 1); drawBook(); return; }
       b.disabled = true;
       if(act === 'rp-parse' || act === 'rp-parse-ai'){
@@ -1270,6 +1322,7 @@
       if(act === 'rp-save'){
         var bsel = $('vBook').querySelector('[data-rp-buyer]');
         if(!RP.date) throw new Error('日付を入れてください');
+        fixMoves();
         var ta2 = $('vBook').querySelector('[data-rp-text]'); if(ta2 && ta2.value) RPTEXT = ta2.value;
         var dup = (BK.reports || []).some(function(r){ return r.date === RP.date; });
         if(dup && !isAdm()) throw new Error(RP.date + ' の日報はもう登録されています。登録した日報を直せるのは管理者（中嶋）だけです');
