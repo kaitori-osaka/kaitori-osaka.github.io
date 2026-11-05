@@ -1070,7 +1070,7 @@
   var MOVE_KINDS = ['経費', '買取資金の補充', '卸先からの入金', '卸先からの振込', '貸付金', '貸付金の返済', '両替（増減なし）'];
   function sgn(x){ return x.sign < 0 ? '−' : x.sign === 0 ? '±' : '+'; }
   var EXP_CATS = ['通信費', '水道光熱費', '消耗品・備品', '荷造・発送費', '交通費', 'その他'];
-  var NET_TYPES = ['業者への売却', '業者オークション', 'ネット販売'];
+  var NET_TYPES = ['業者への売却', '業者オークション', 'ネット販売', '社内販売'];
   // 種類の名前から「（藤原）」などを外したもの（選ぶ欄用）
   function kindBase(k){ return String(k || '').replace(/（.*）$/, ''); }
   // 登録の前に、直した種類・金額から向き（＋／−）と名前を整える
@@ -1139,7 +1139,16 @@
     return h;
   }
   // レジ（残金）の出入り：買取資金の補充／貸付金（人の名前）／卸先からの入金／経費
-  function movesOf(r){ return Array.isArray(r.moves) ? r.moves : []; }
+  // 以前の読み取りで貸付金になっていた「両替」「〇〇さん〇〇購入〇円補充」（社内販売）は、貸付金に数えない
+  function fixMove(x){
+    if(!x || !/^貸付金（/.test(x.kind || '')) return x;
+    var t = String(x.text || '') + String(x.who || '');
+    if(/両替/.test(t)) return Object.assign({}, x, /補充/.test(t) ? { kind: '買取資金の補充', who: '両替', sign: 1 } : { kind: '両替（増減なし）', who: null, sign: 0 });
+    var sb = /^(.+?)(?:さん|様|氏|君)(.+?)(?:を)?購入[\d,]+円?.*補充/.exec(String(x.text || '').replace(/\s+/g, ''));
+    if(sb) return Object.assign({}, x, { kind: '卸先からの入金', who: sb[1] + '（社内販売）', sign: 1 });
+    return x;
+  }
+  function movesOf(r){ return Array.isArray(r.moves) ? r.moves.map(fixMove) : []; }
   // 貸付金の返済は金庫から（レジとは関係なし）
   function placeOf(x){ return x.place || (/^貸付金の返済/.test(x.kind) ? '金庫' : 'レジ'); }
   var EXPOPEN = false;
@@ -1158,7 +1167,7 @@
       if(x.kind === '経費'){ ex.all += v; if(placeOf(x) === 'レジ') ex.reg += v; var c = catOf(x); ex.cat[c] = (ex.cat[c] || 0) + v; ex.list.push({ date: r.date, x: x }); return; }
       if(x.kind === '卸先からの振込'){ bank += v; return; }
       if(x.kind === '卸先からの入金' && placeOf(x) === '金庫'){ safeIn += v; return; }
-      var k = /^貸付金/.test(x.kind) ? '貸付金' : x.kind; t[k] = (t[k] || 0) + v * (x.sign || 1); }); });
+      var k = /^貸付金/.test(x.kind) ? '貸付金' : x.kind; if(x.sign === 0) return; t[k] = (t[k] || 0) + v * (x.sign || 1); }); });
     if(ex.all) t['経費'] = -ex.all;
     // 貸付金の残高は全期間で数える
     var all = {}; (BK.reports || []).forEach(function(r){ movesOf(r).forEach(function(x){ if(/^貸付金/.test(x.kind) && x.who) all[x.who] = (all[x.who] || 0) + (Number(x.amount) || 0) * (x.sign || 1); }); });
