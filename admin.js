@@ -579,7 +579,8 @@
         var ok = d.querySelector('[data-aiok=' + b.dataset.target + ']'); if(ok){ ok.hidden = false;
           if(!ok.querySelector('[data-redo]')) ok.insertAdjacentHTML('beforeend', '<button class="btn ghost small" data-act="ai-draft" data-redo="1" data-target="' + b.dataset.target + '" data-purpose="' + b.dataset.purpose + '">いまいちなので考え直す</button>'); }
         var cb = d.querySelector('[data-f=aiok_' + b.dataset.target + ']'); if(cb) cb.checked = false;
-        say(redo ? '考え直した文面を入れました。確認・修正してから送ってください' : 'AIの下書きを入れました（AIが自分で見直し済み）。確認・修正してから送ってください', 'ok');
+        say(dr.how === 'template' ? 'AIが混み合っていたため、今の場面に合わせた文面（お客様のお名前・担当者の名前入り）を入れました。確認・修正してから送ってください。少し時間をおいて「いまいちなので考え直す」を押すと、AIで作り直せます'
+          : redo ? '考え直した文面を入れました。確認・修正してから送ってください' : 'AIの下書きを入れました（お客様のお名前・担当' + (dr.staff ? '「' + dr.staff + '」' : '') + 'の名前入り、AIが自分で見直し済み）。確認・修正してから送ってください', 'ok');
       }catch(e){ say(e.message); }
       b.textContent = lb; b.disabled = false; return;
     }
