@@ -213,3 +213,13 @@ tr.rp-flash>td{animation:rpflash 2.4s ease-out}
 .rp-net .rp-dh{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
 .rp-moves input,.rp-moves select{max-width:100%}
 .rp-note{display:flex;gap:6px;align-items:center;margin:4px 0}
+
+/* 月ごとの見出し（押すと折りたたみ）と、日ごとの濃淡・区切り線 */
+.bk-table tr.m-head td{background:#d9e3f2;color:#1e3a6b;font-weight:700;cursor:pointer;border-top:3px solid #5b74a3;padding:7px 10px;user-select:none}
+.bk-table tr.m-head:hover td{background:#cbd8ee}
+.bk-table tr.d-alt td{background:#f3f6fb}
+.bk-table tr.d-top td{border-top:2px solid #9fb1cf}
+.bk-table tr.g-head td{background:#e8eef8}
+.bk-table tr.g-head.d-alt td{background:#dfe7f4}
+.bk-table tr.click{cursor:pointer}
+.bk-table tr.click:hover td{background:#fff7e6}
