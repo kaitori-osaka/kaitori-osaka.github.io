@@ -574,7 +574,17 @@
       try{
         var redo = b.dataset.redo === '1', prev = redo && tgt ? (tgt.value || tgt.dataset.ai || '') : '';
         b.textContent = redo ? 'AIが考え直しています…' : 'AIが下書きを作り、見直しています…';
-        var dr = await call('staffDraft', { id: r.id, purpose: b.dataset.purpose, hint: g('aihint'), extra: extra, prev: prev, actor: who });
+        // AIが混雑して返事が来ないことがあるため、待つ時間を区切る：45秒→軽いAIで作り直し（35秒）→それでもだめなら場面に合わせた文面
+        var q = { id: r.id, purpose: b.dataset.purpose, hint: g('aihint'), extra: extra, prev: prev, actor: who };
+        var within = function(p, ms){ return Promise.race([p, new Promise(function(_, no){ setTimeout(function(){ no(new Error('timeout')); }, ms); })]); };
+        var dr;
+        try{ dr = await within(call('staffDraft', q), 45000); }
+        catch(e1){
+          if(e1 && e1.message !== 'timeout') throw e1;
+          b.textContent = 'AIが混み合っています。軽いAIで作り直しています…';
+          try{ dr = await within(call('staffDraft', Object.assign({}, q, { fast: 1 })), 35000); }
+          catch(e2){ if(e2 && e2.message !== 'timeout') throw e2; dr = await call('staffDraft', Object.assign({}, q, { template: 1 })); }
+        }
         if(tgt){ tgt.value = dr.text; tgt.dataset.ai = dr.text; tgt.focus(); }
         var ok = d.querySelector('[data-aiok=' + b.dataset.target + ']'); if(ok){ ok.hidden = false;
           if(!ok.querySelector('[data-redo]')) ok.insertAdjacentHTML('beforeend', '<button class="btn ghost small" data-act="ai-draft" data-redo="1" data-target="' + b.dataset.target + '" data-purpose="' + b.dataset.purpose + '">いまいちなので考え直す</button>'); }
